@@ -202,18 +202,25 @@
       const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket);
       if (intervals.length === 0) {
         warnings.push(`No contribution intervals defined for "${bucket}" — it will grow at 0% with no contributions during accumulation.`);
+      } else {
+        const coversStart = intervals.some(i => i.startAge <= cfg.startAge && i.endAge > cfg.startAge);
+        if (!coversStart) {
+          warnings.push(`No contribution interval for "${bucket}" covers the simulation start age (${cfg.startAge}) — it will grow at 0% with no contributions until age ${Math.min(...intervals.map(i => i.startAge))}.`);
+        }
       }
     }
 
     // Warn on spend interval gaps
-    if (spends.length > 0) {
+    if (spends.length === 0 && cfg.endAge > cfg.retirementAge) {
+      warnings.push(`No spend intervals defined — the entire retirement phase (ages ${cfg.retirementAge}–${cfg.endAge}) will use $0 spend and 0% growth.`);
+    } else if (spends.length > 0) {
       const sorted = [...spends].sort((a, b) => a.startAge - b.startAge);
       if (sorted[0].startAge > cfg.retirementAge) {
         warnings.push(`Spend intervals start at age ${sorted[0].startAge} but retirement is age ${cfg.retirementAge}. Gap will use $0 spend and 0% growth.`);
       }
       for (let i = 1; i < sorted.length; i++) {
         if (sorted[i].startAge > sorted[i - 1].endAge) {
-          warnings.push(`Gap in spend intervals between ages ${sorted[i-1].endAge} and ${sorted[i].startAge}.`);
+          warnings.push(`Gap in spend intervals between ages ${sorted[i-1].endAge} and ${sorted[i].startAge}. Gap will use $0 spend and 0% growth.`);
         }
       }
       if (sorted[sorted.length - 1].endAge < cfg.endAge) {
