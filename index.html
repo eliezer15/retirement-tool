@@ -231,6 +231,146 @@
     return { errors, warnings };
   }
 
+  /** Main simulation. Returns { years: YearResult[], summary: Summary } or null if config has errors.
+   * Steps monthly, tallies taxes annually.
+   * @param {object} cfg - validated config object
+   */
+  function simulate(cfg) {
+    const { errors } = validateConfig(cfg);
+    if (errors.length > 0) return null;
+
+    // --- state ---
+    const bal = {
+      traditional: cfg.buckets.traditional.startBalance,
+      roth: cfg.buckets.roth.startBalance,
+      taxable: cfg.buckets.taxable.startBalance,
+    };
+    let taxableBasis = cfg.buckets.taxable.startBasis ?? cfg.buckets.taxable.startBalance;
+
+    const years = [];
+
+    // Helper: find active contribution interval for a bucket at a given age (fractional ok)
+    function getContribInterval(bucket, age) {
+      return (cfg.contributionIntervals || []).find(
+        i => i.bucket === bucket && age >= i.startAge && age < i.endAge
+      ) || null;
+    }
+
+    // Helper: find active spend interval at a given age
+    function getSpendInterval(age) {
+      return (cfg.spendIntervals || []).find(
+        i => age >= i.startAge && age < i.endAge
+      ) || null;
+    }
+
+    // Run month by month
+    const totalMonths = (cfg.endAge - cfg.startAge) * 12;
+    let yearOrdinaryIncome = 0;
+    let yearCapGainsRealized = 0;
+    let yearWithdrawn = 0;
+    let currentYear = 0; // years elapsed since startAge
+
+    for (let m = 0; m < totalMonths; m++) {
+      const ageFloat = cfg.startAge + m / 12;
+      const isSpendPhase = ageFloat >= cfg.retirementAge;
+
+      if (isSpendPhase) {
+        // --- SPEND PHASE ---
+        const si = getSpendInterval(ageFloat);
+        const rates = si ? si.rates : { traditional: 0, roth: 0, taxable: 0 };
+        const monthlySpend = si ? si.monthlySpend : 0;
+
+        // Apply monthly growth to each bucket
+        for (const b of ['traditional', 'roth', 'taxable']) {
+          const r = rates[b] || 0;
+          bal[b] = bal[b] * (1 + r / 12);
+        }
+
+        // Pull withdrawals in order
+        let remaining = monthlySpend;
+        for (const b of cfg.withdrawalOrder) {
+          if (remaining <= 0) break;
+          const available = bal[b];
+          if (available <= 0) continue;
+          const withdrawal = Math.min(remaining, available);
+          bal[b] -= withdrawal;
+          remaining -= withdrawal;
+          yearWithdrawn += withdrawal;
+
+          if (b === 'traditional') {
+            yearOrdinaryIncome += withdrawal;
+          } else if (b === 'taxable') {
+            // Proportional basis method: gains% = (balance_before - basis) / balance_before
+            const balanceBefore = bal[b] + withdrawal;
+            const gainsFrac = balanceBefore > 0
+              ? Math.max(0, (balanceBefore - taxableBasis) / balanceBefore)
+              : 0;
+            const gainsWithdrawn = withdrawal * gainsFrac;
+            const basisWithdrawn = withdrawal - gainsWithdrawn;
+            taxableBasis = Math.max(0, taxableBasis - basisWithdrawn);
+            yearCapGainsRealized += gainsWithdrawn;
+          }
+          // roth: no taxable income
+        }
+
+      } else {
+        // --- ACCUMULATION PHASE ---
+        for (const b of ['traditional', 'roth', 'taxable']) {
+          const ci = getContribInterval(b, ageFloat);
+          const r = ci ? ci.annualRate : 0;
+          const contrib = ci ? ci.monthly : 0;
+          bal[b] = bal[b] * (1 + r / 12) + contrib;
+          if (b === 'taxable') taxableBasis += contrib;
+        }
+      }
+
+      // At each year boundary, record annual results
+      const newYear = Math.floor((m + 1) / 12);
+      if (newYear > currentYear) {
+        const age = cfg.startAge + newYear;
+        const { ordinaryTax, capGainsTax } = computeAnnualTax(yearOrdinaryIncome, yearCapGainsRealized);
+        const totalBalance = bal.traditional + bal.roth + bal.taxable;
+        years.push({
+          age,
+          balances: { traditional: bal.traditional, roth: bal.roth, taxable: bal.taxable },
+          totalBalance,
+          withdrawn: yearWithdrawn,
+          ordinaryIncome: yearOrdinaryIncome,
+          capGainsRealized: yearCapGainsRealized,
+          ordinaryTax,
+          capGainsTax,
+          totalTax: ordinaryTax + capGainsTax,
+          netSpendable: yearWithdrawn - (ordinaryTax + capGainsTax),
+        });
+        yearOrdinaryIncome = 0;
+        yearCapGainsRealized = 0;
+        yearWithdrawn = 0;
+        currentYear = newYear;
+      }
+    }
+
+    // Compute summary
+    let peakNetWorth = 0, peakNetWorthAge = cfg.startAge;
+    let totalLifetimeTax = 0;
+    let ageMoneyRunsOut = null;
+    for (const y of years) {
+      if (y.totalBalance > peakNetWorth) {
+        peakNetWorth = y.totalBalance;
+        peakNetWorthAge = y.age;
+      }
+      totalLifetimeTax += y.totalTax;
+      if (ageMoneyRunsOut === null && y.totalBalance < 1 && y.age >= cfg.retirementAge) {
+        ageMoneyRunsOut = y.age;
+      }
+    }
+    const endingBalance = years.length > 0 ? years[years.length - 1].totalBalance : 0;
+
+    return {
+      years,
+      summary: { peakNetWorth, peakNetWorthAge, totalLifetimeTax, ageMoneyRunsOut, endingBalance }
+    };
+  }
+
   </script>
 </body>
 </html>
