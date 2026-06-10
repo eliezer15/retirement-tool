@@ -163,6 +163,67 @@
     return { ordinaryTax, capGainsTax };
   }
 
+  /** Validate the config object. Returns { errors: string[], warnings: string[] }.
+   * errors block simulation. warnings allow it. */
+  function validateConfig(cfg) {
+    const errors = [];
+    const warnings = [];
+    const BUCKETS = ['traditional', 'roth', 'taxable'];
+
+    if (cfg.startAge >= cfg.retirementAge) errors.push('Start age must be less than retirement age.');
+    if (cfg.retirementAge >= cfg.endAge) errors.push('Retirement age must be less than end age.');
+
+    // Check contribution interval overlaps per bucket
+    for (const bucket of BUCKETS) {
+      const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket);
+      for (let a = 0; a < intervals.length; a++) {
+        for (let b = a + 1; b < intervals.length; b++) {
+          const ia = intervals[a], ib = intervals[b];
+          if (ia.startAge < ib.endAge && ib.startAge < ia.endAge) {
+            errors.push(`Contribution intervals for "${bucket}" overlap (ages ${ia.startAge}-${ia.endAge} and ${ib.startAge}-${ib.endAge}).`);
+          }
+        }
+      }
+    }
+
+    // Check spend interval overlaps
+    const spends = cfg.spendIntervals || [];
+    for (let a = 0; a < spends.length; a++) {
+      for (let b = a + 1; b < spends.length; b++) {
+        const sa = spends[a], sb = spends[b];
+        if (sa.startAge < sb.endAge && sb.startAge < sa.endAge) {
+          errors.push(`Spend intervals overlap (ages ${sa.startAge}-${sa.endAge} and ${sb.startAge}-${sb.endAge}).`);
+        }
+      }
+    }
+
+    // Warn on uncovered accumulation buckets
+    for (const bucket of BUCKETS) {
+      const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket);
+      if (intervals.length === 0) {
+        warnings.push(`No contribution intervals defined for "${bucket}" — it will grow at 0% with no contributions during accumulation.`);
+      }
+    }
+
+    // Warn on spend interval gaps
+    if (spends.length > 0) {
+      const sorted = [...spends].sort((a, b) => a.startAge - b.startAge);
+      if (sorted[0].startAge > cfg.retirementAge) {
+        warnings.push(`Spend intervals start at age ${sorted[0].startAge} but retirement is age ${cfg.retirementAge}. Gap will use $0 spend and 0% growth.`);
+      }
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].startAge > sorted[i - 1].endAge) {
+          warnings.push(`Gap in spend intervals between ages ${sorted[i-1].endAge} and ${sorted[i].startAge}.`);
+        }
+      }
+      if (sorted[sorted.length - 1].endAge < cfg.endAge) {
+        warnings.push(`Spend intervals end at age ${sorted[sorted.length-1].endAge} but simulation ends at age ${cfg.endAge}. Gap will use $0 spend and 0% growth.`);
+      }
+    }
+
+    return { errors, warnings };
+  }
+
   </script>
 </body>
 </html>
