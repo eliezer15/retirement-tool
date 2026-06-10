@@ -434,6 +434,184 @@
     return true;
   }
 
+  // === RENDER UI ===
+
+  const BUCKET_LABELS = { traditional: 'Traditional', roth: 'Roth', taxable: 'Taxable' };
+
+  function showBanner(type, msg) {
+    const el = document.getElementById('banner');
+    if (!msg) { el.className = ''; el.textContent = ''; return; }
+    el.className = type; // 'error' or 'warn'
+    el.textContent = msg;
+  }
+
+  function fmt(n) { return n == null ? '—' : '$' + Math.round(n).toLocaleString(); }
+  function fmtPct(n) { return (n * 100).toFixed(2) + '%'; }
+
+  function renderGlobal() {
+    document.getElementById('ctrl-global').innerHTML = `
+      <h2>Global Settings</h2>
+      <div class="row">
+        <div class="field"><label>Start Age</label>
+          <input type="number" id="g-start" value="${config.startAge}" min="18" max="80"></div>
+        <div class="field"><label>Retirement Age</label>
+          <input type="number" id="g-retire" value="${config.retirementAge}" min="18" max="100"></div>
+        <div class="field"><label>End Age</label>
+          <input type="number" id="g-end" value="${config.endAge}" min="20" max="120"></div>
+      </div>`;
+    document.getElementById('g-start').addEventListener('input', e => { config.startAge = +e.target.value; onConfigChange(); });
+    document.getElementById('g-retire').addEventListener('input', e => { config.retirementAge = +e.target.value; onConfigChange(); });
+    document.getElementById('g-end').addEventListener('input', e => { config.endAge = +e.target.value; onConfigChange(); });
+  }
+
+  function renderBuckets() {
+    document.getElementById('ctrl-buckets').innerHTML = `
+      <h2>Starting Balances</h2>
+      <div class="row">
+        <div class="field"><label>Traditional – Balance</label>
+          <input type="number" id="b-trad" value="${config.buckets.traditional.startBalance}" min="0"></div>
+        <div class="field"><label>Roth – Balance</label>
+          <input type="number" id="b-roth" value="${config.buckets.roth.startBalance}" min="0"></div>
+        <div class="field"><label>Taxable – Balance</label>
+          <input type="number" id="b-tax-bal" value="${config.buckets.taxable.startBalance}" min="0"></div>
+        <div class="field"><label>Taxable – Basis</label>
+          <input type="number" id="b-tax-basis" value="${config.buckets.taxable.startBasis}" min="0"></div>
+      </div>`;
+    document.getElementById('b-trad').addEventListener('input', e => { config.buckets.traditional.startBalance = +e.target.value; onConfigChange(); });
+    document.getElementById('b-roth').addEventListener('input', e => { config.buckets.roth.startBalance = +e.target.value; onConfigChange(); });
+    document.getElementById('b-tax-bal').addEventListener('input', e => { config.buckets.taxable.startBalance = +e.target.value; onConfigChange(); });
+    document.getElementById('b-tax-basis').addEventListener('input', e => { config.buckets.taxable.startBasis = +e.target.value; onConfigChange(); });
+  }
+
+  function renderOrder() {
+    const el = document.getElementById('ctrl-order');
+    el.innerHTML = `<h2>Withdrawal Order <span style="font-size:.8rem;color:#6b7280">(use arrows to reorder)</span></h2>
+      <ul class="order-list" id="order-list">
+        ${config.withdrawalOrder.map((b, i) => `
+          <li data-bucket="${b}">
+            <strong style="min-width:90px">${BUCKET_LABELS[b]}</strong>
+            <button class="small secondary" onclick="moveOrder(${i}, -1)" ${i===0?'disabled':''}>▲</button>
+            <button class="small secondary" onclick="moveOrder(${i},  1)" ${i===config.withdrawalOrder.length-1?'disabled':''}>▼</button>
+          </li>`).join('')}
+      </ul>`;
+  }
+
+  function moveOrder(idx, dir) {
+    const arr = config.withdrawalOrder;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= arr.length) return;
+    [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+    onConfigChange();
+  }
+
+  function renderContributions() {
+    const el = document.getElementById('ctrl-contributions');
+    const rows = config.contributionIntervals.map((ci, i) => `
+      <div class="interval-row">
+        <div class="field"><label>Bucket</label>
+          <select onchange="updateCI(${i},'bucket',this.value)">
+            ${['traditional','roth','taxable'].map(b =>
+              `<option value="${b}" ${ci.bucket===b?'selected':''}>${BUCKET_LABELS[b]}</option>`).join('')}
+          </select></div>
+        <div class="field"><label>Start Age</label>
+          <input type="number" value="${ci.startAge}" min="0" max="120" onchange="updateCI(${i},'startAge',+this.value)"></div>
+        <div class="field"><label>End Age</label>
+          <input type="number" value="${ci.endAge}" min="0" max="120" onchange="updateCI(${i},'endAge',+this.value)"></div>
+        <div class="field"><label>Monthly $</label>
+          <input type="number" value="${ci.monthly}" min="0" onchange="updateCI(${i},'monthly',+this.value)"></div>
+        <div class="field"><label>Annual Rate %</label>
+          <input type="number" value="${(ci.annualRate*100).toFixed(2)}" min="0" max="30" step="0.1" onchange="updateCI(${i},'annualRate',+this.value/100)"></div>
+        <div style="align-self:flex-end"><button class="small danger" onclick="removeCI(${i})">✕</button></div>
+      </div>`).join('');
+    el.innerHTML = `<h2>Contribution Intervals <span class="phase-badge badge-acc">Accumulation</span></h2>
+      <div id="ci-list">${rows}</div>
+      <button onclick="addCI()" style="margin-top:8px">+ Add Interval</button>`;
+  }
+
+  function updateCI(i, field, val) {
+    config.contributionIntervals[i][field] = val;
+    onConfigChange();
+  }
+  function addCI() {
+    config.contributionIntervals.push({ bucket: 'traditional', startAge: config.startAge, endAge: config.retirementAge, monthly: 500, annualRate: 0.07 });
+    onConfigChange();
+  }
+  function removeCI(i) {
+    config.contributionIntervals.splice(i, 1);
+    onConfigChange();
+  }
+
+  function renderSpend() {
+    const el = document.getElementById('ctrl-spend');
+    const rows = config.spendIntervals.map((si, i) => `
+      <div class="interval-row">
+        <div class="field"><label>Start Age</label>
+          <input type="number" value="${si.startAge}" min="0" max="120" onchange="updateSI(${i},'startAge',+this.value)"></div>
+        <div class="field"><label>End Age</label>
+          <input type="number" value="${si.endAge}" min="0" max="120" onchange="updateSI(${i},'endAge',+this.value)"></div>
+        <div class="field"><label>Monthly Spend $</label>
+          <input type="number" value="${si.monthlySpend}" min="0" onchange="updateSI(${i},'monthlySpend',+this.value)"></div>
+        <div class="field"><label>Trad Rate %</label>
+          <input type="number" value="${(si.rates.traditional*100).toFixed(2)}" min="0" max="30" step="0.1" onchange="updateSIRate(${i},'traditional',+this.value/100)"></div>
+        <div class="field"><label>Roth Rate %</label>
+          <input type="number" value="${(si.rates.roth*100).toFixed(2)}" min="0" max="30" step="0.1" onchange="updateSIRate(${i},'roth',+this.value/100)"></div>
+        <div class="field"><label>Taxable Rate %</label>
+          <input type="number" value="${(si.rates.taxable*100).toFixed(2)}" min="0" max="30" step="0.1" onchange="updateSIRate(${i},'taxable',+this.value/100)"></div>
+        <div style="align-self:flex-end"><button class="small danger" onclick="removeSI(${i})">✕</button></div>
+      </div>`).join('');
+    el.innerHTML = `<h2>Spend Intervals <span class="phase-badge badge-spend">Retirement</span></h2>
+      <div id="si-list">${rows}</div>
+      <button onclick="addSI()" style="margin-top:8px">+ Add Interval</button>`;
+  }
+
+  function updateSI(i, field, val) {
+    config.spendIntervals[i][field] = val;
+    onConfigChange();
+  }
+  function updateSIRate(i, bucket, val) {
+    config.spendIntervals[i].rates[bucket] = val;
+    onConfigChange();
+  }
+  function addSI() {
+    config.spendIntervals.push({ startAge: config.retirementAge, endAge: config.endAge, monthlySpend: 8000, rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } });
+    onConfigChange();
+  }
+  function removeSI(i) {
+    config.spendIntervals.splice(i, 1);
+    onConfigChange();
+  }
+
+  function renderSaveLoad() {
+    document.getElementById('ctrl-saveload').innerHTML = `
+      <h2>Save / Load</h2>
+      <div id="saveload-area">
+        <button onclick="saveConfig()">⬇ Download JSON</button>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+          <button class="secondary" onclick="document.getElementById('file-input').click()">⬆ Upload JSON</button>
+          <input type="file" id="file-input" accept=".json" style="display:none">
+        </label>
+        <div>
+          <textarea id="paste-area" placeholder="Paste JSON here…"></textarea>
+          <button class="secondary" onclick="applyPasted()" style="margin-top:4px">Apply Pasted JSON</button>
+        </div>
+      </div>`;
+    document.getElementById('file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        if (loadConfigFromText(ev.target.result)) onConfigChange();
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function applyPasted() {
+    const text = document.getElementById('paste-area').value.trim();
+    if (!text) return;
+    if (loadConfigFromText(text)) onConfigChange();
+  }
+
   </script>
 </body>
 </html>
