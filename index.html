@@ -612,6 +612,179 @@
     if (loadConfigFromText(text)) onConfigChange();
   }
 
+  // === RENDER OUTPUTS ===
+
+  let balanceChart = null;
+  let taxChart = null;
+
+  const BUCKET_COLORS = {
+    traditional: { bg: 'rgba(59,130,246,0.6)',  border: '#2563eb' },
+    roth:        { bg: 'rgba(16,185,129,0.6)',   border: '#059669' },
+    taxable:     { bg: 'rgba(251,191,36,0.6)',   border: '#d97706' },
+  };
+
+  function renderCharts(result) {
+    const years = result.years;
+    const labels = years.map(y => y.age);
+
+    // --- Balance chart (stacked area) ---
+    const balCtx = document.getElementById('chart-balance').getContext('2d');
+    const retirementIdx = years.findIndex(y => y.age >= config.retirementAge);
+
+    const balDatasets = ['traditional', 'roth', 'taxable'].map(b => ({
+      label: BUCKET_LABELS[b],
+      data: years.map(y => Math.round(y.balances[b])),
+      backgroundColor: BUCKET_COLORS[b].bg,
+      borderColor: BUCKET_COLORS[b].border,
+      borderWidth: 1.5,
+      fill: true,
+      tension: 0.3,
+    }));
+    // Total balance as dashed line on top
+    balDatasets.push({
+      label: 'Total',
+      data: years.map(y => Math.round(y.totalBalance)),
+      backgroundColor: 'transparent',
+      borderColor: '#374151',
+      borderWidth: 2,
+      borderDash: [5, 3],
+      fill: false,
+      tension: 0.3,
+      pointRadius: 0,
+    });
+
+    if (balanceChart) balanceChart.destroy();
+    balanceChart = new Chart(balCtx, {
+      type: 'line',
+      data: { labels, datasets: balDatasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          tooltip: { mode: 'index', intersect: false,
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } },
+          legend: { position: 'top' },
+        },
+        scales: {
+          x: { title: { display: true, text: 'Age' } },
+          y: { stacked: true, title: { display: true, text: 'Balance ($)' },
+            ticks: { callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : (v/1e3).toFixed(0)+'K') } },
+        },
+        animation: false,
+      },
+      plugins: [{
+        id: 'retireLine',
+        afterDraw(chart) {
+          if (retirementIdx < 0) return;
+          const ctx = chart.ctx;
+          const x = chart.scales.x.getPixelForValue(retirementIdx);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x, chart.chartArea.top);
+          ctx.lineTo(x, chart.chartArea.bottom);
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 3]);
+          ctx.stroke();
+          ctx.fillStyle = '#ef4444';
+          ctx.font = '11px system-ui';
+          ctx.fillText('Retirement', x + 4, chart.chartArea.top + 14);
+          ctx.restore();
+        }
+      }],
+    });
+
+    // --- Tax chart (stacked bar, retirement years only) ---
+    const taxCtx = document.getElementById('chart-tax').getContext('2d');
+    const retYears = years.filter(y => y.age > config.retirementAge);
+    if (taxChart) taxChart.destroy();
+    taxChart = new Chart(taxCtx, {
+      type: 'bar',
+      data: {
+        labels: retYears.map(y => y.age),
+        datasets: [
+          { label: 'Ordinary Income Tax', data: retYears.map(y => Math.round(y.ordinaryTax)), backgroundColor: 'rgba(239,68,68,0.7)' },
+          { label: 'Capital Gains Tax',   data: retYears.map(y => Math.round(y.capGainsTax)), backgroundColor: 'rgba(245,158,11,0.7)' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { tooltip: { mode: 'index', intersect: false,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } } },
+        scales: {
+          x: { stacked: true, title: { display: true, text: 'Age' } },
+          y: { stacked: true, title: { display: true, text: 'Tax ($)' },
+            ticks: { callback: v => '$' + (v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v) } },
+        }
+      }
+    });
+  }
+
+  function renderSummary(result) {
+    const s = result.summary;
+    document.getElementById('summary-grid').innerHTML = `
+      <div class="summary-card"><div class="val">${fmt(s.peakNetWorth)}</div><div class="lbl">Peak Net Worth (age ${s.peakNetWorthAge})</div></div>
+      <div class="summary-card"><div class="val">${fmt(s.totalLifetimeTax)}</div><div class="lbl">Total Lifetime Tax</div></div>
+      <div class="summary-card"><div class="val">${s.ageMoneyRunsOut ?? 'Never'}</div><div class="lbl">Age Money Runs Out</div></div>
+      <div class="summary-card"><div class="val">${fmt(s.endingBalance)}</div><div class="lbl">Ending Balance (age ${config.endAge})</div></div>
+    `;
+  }
+
+  function renderTable(result) {
+    const rows = result.years.map(y => `
+      <tr>
+        <td>${y.age}</td>
+        <td>${fmt(y.balances.traditional)}</td>
+        <td>${fmt(y.balances.roth)}</td>
+        <td>${fmt(y.balances.taxable)}</td>
+        <td>${fmt(y.totalBalance)}</td>
+        <td>${fmt(y.withdrawn)}</td>
+        <td>${fmt(y.ordinaryTax)}</td>
+        <td>${fmt(y.capGainsTax)}</td>
+        <td>${fmt(y.totalTax)}</td>
+        <td>${fmt(y.netSpendable)}</td>
+      </tr>`).join('');
+    document.getElementById('detail-table').innerHTML = `
+      <thead><tr>
+        <th>Age</th><th>Traditional</th><th>Roth</th><th>Taxable</th><th>Total</th>
+        <th>Withdrawn</th><th>Ord. Tax</th><th>CG Tax</th><th>Total Tax</th><th>Net Spendable</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>`;
+  }
+
+  // === MAIN LOOP ===
+
+  function onConfigChange() {
+    // Re-render all controls (so indexes stay in sync after add/remove)
+    renderGlobal();
+    renderBuckets();
+    renderOrder();
+    renderContributions();
+    renderSpend();
+    renderSaveLoad();
+
+    // Validate
+    const { errors, warnings } = validateConfig(config);
+    if (errors.length > 0) {
+      showBanner('error', errors.join(' | '));
+      return;
+    }
+    if (warnings.length > 0) {
+      showBanner('warn', warnings.join(' | '));
+    } else {
+      showBanner(null, null);
+    }
+
+    // Simulate and render outputs
+    const result = simulate(config);
+    if (!result) return;
+    renderCharts(result);
+    renderSummary(result);
+    renderTable(result);
+  }
+
+  // Initialize on load
+  onConfigChange();
+
   </script>
 </body>
 </html>
