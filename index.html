@@ -108,6 +108,60 @@
 
   // === ENGINE ===
   // All pure functions. No DOM access.
+  //
+  // Bracket table format: array of [upperBound, rate].
+  // Each entry covers income from the PREVIOUS upperBound (exclusive) up to this upperBound (inclusive).
+  // The last entry uses Infinity as the upperBound.
+  // Example: [24800, 0.10] means: income from $0 to $24,800 is taxed at 10%.
+
+  /** Apply a progressive bracket table to a taxable amount.
+   * brackets: array of [upperBound, rate]. Last upperBound must be Infinity.
+   * Returns total tax owed. */
+  function applyBrackets(amount, brackets) {
+    if (amount <= 0) return 0;
+    let tax = 0;
+    let prev = 0;
+    for (const [upper, rate] of brackets) {
+      if (amount <= prev) break;
+      const chunk = Math.min(amount, upper) - prev;
+      tax += chunk * rate;
+      prev = upper;
+    }
+    return tax;
+  }
+
+  /** Compute annual federal tax for a single year of retirement withdrawals.
+   * @param {number} ordinaryIncome - Total Traditional withdrawals for the year
+   * @param {number} capGainsRealized - Taxable gains portion of Taxable withdrawals
+   * @returns {{ ordinaryTax: number, capGainsTax: number }}
+   */
+  function computeAnnualTax(ordinaryIncome, capGainsRealized) {
+    // Step 1: ordinary income tax
+    const taxableOrdinary = Math.max(0, ordinaryIncome - STANDARD_DEDUCTION_MFJ);
+    const ordinaryTax = applyBrackets(taxableOrdinary, ORDINARY_BRACKETS_MFJ);
+
+    // Step 2: LTCG stacked on top of ordinary taxable income
+    // Figure out effective rate at the top of the ordinary stack, then apply
+    // remaining LTCG bracket room to the gains.
+    let capGainsTax = 0;
+    if (capGainsRealized > 0) {
+      const stackBase = taxableOrdinary; // gains sit on top of this
+      let remaining = capGainsRealized;
+      let prev = 0;
+      for (const [upper, rate] of LTCG_BRACKETS_MFJ) {
+        // How much room is left in this bracket above stackBase?
+        const bracketFloor = Math.max(prev, stackBase);
+        const bracketRoom = Math.max(0, upper - bracketFloor);
+        const chunk = Math.min(remaining, bracketRoom);
+        capGainsTax += chunk * rate;
+        remaining -= chunk;
+        if (remaining <= 0) break;
+        prev = upper;
+      }
+    }
+
+    return { ordinaryTax, capGainsTax };
+  }
 
   </script>
 </body>
