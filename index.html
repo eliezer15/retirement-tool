@@ -751,6 +751,11 @@
       <tbody>${rows}</tbody>`;
   }
 
+  // Select-all on focus for all number inputs so typing replaces the value immediately.
+  document.addEventListener('focusin', e => {
+    if (e.target.type === 'number') e.target.select();
+  });
+
   // === MAIN LOOP ===
 
   // Validate + simulate + render outputs only (no control DOM rebuild).
