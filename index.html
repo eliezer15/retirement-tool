@@ -228,6 +228,14 @@
       }
     }
 
+    // Validate withdrawal order contains only valid bucket names
+    const VALID_BUCKETS = new Set(['traditional', 'roth', 'taxable']);
+    for (const b of (cfg.withdrawalOrder || [])) {
+      if (!VALID_BUCKETS.has(b)) {
+        errors.push(`withdrawalOrder contains invalid bucket name: "${b}".`);
+      }
+    }
+
     return { errors, warnings };
   }
 
@@ -286,6 +294,7 @@
           bal[b] = bal[b] * (1 + r / 12);
         }
 
+        // Growth applied before withdrawal; balanceBefore in basis calc includes this month's growth.
         // Pull withdrawals in order
         let remaining = monthlySpend;
         for (const b of cfg.withdrawalOrder) {
@@ -327,6 +336,7 @@
       // At each year boundary, record annual results
       const newYear = Math.floor((m + 1) / 12);
       if (newYear > currentYear) {
+        // age = age at END of this year (after 12 months complete). Year 1 data = age startAge+1.
         const age = cfg.startAge + newYear;
         const { ordinaryTax, capGainsTax } = computeAnnualTax(yearOrdinaryIncome, yearCapGainsRealized);
         const totalBalance = bal.traditional + bal.roth + bal.taxable;
