@@ -426,8 +426,8 @@
       return false;
     }
     // Basic schema check
-    if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals) {
-      showBanner('error', 'JSON is missing required fields (buckets, contributionIntervals, spendIntervals).');
+    if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals || !parsed.withdrawalOrder) {
+      showBanner('error', 'JSON is missing required fields (buckets, contributionIntervals, spendIntervals, withdrawalOrder).');
       return false;
     }
     config = parsed;
