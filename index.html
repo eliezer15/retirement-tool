@@ -459,9 +459,9 @@
         <div class="field"><label>End Age</label>
           <input type="number" id="g-end" value="${config.endAge}" min="20" max="120"></div>
       </div>`;
-    document.getElementById('g-start').addEventListener('input', e => { config.startAge = +e.target.value; onConfigChange(); });
-    document.getElementById('g-retire').addEventListener('input', e => { config.retirementAge = +e.target.value; onConfigChange(); });
-    document.getElementById('g-end').addEventListener('input', e => { config.endAge = +e.target.value; onConfigChange(); });
+    document.getElementById('g-start').addEventListener('input', e => { config.startAge = +e.target.value; runSim(); });
+    document.getElementById('g-retire').addEventListener('input', e => { config.retirementAge = +e.target.value; runSim(); });
+    document.getElementById('g-end').addEventListener('input', e => { config.endAge = +e.target.value; runSim(); });
   }
 
   function renderBuckets() {
@@ -477,10 +477,10 @@
         <div class="field"><label>Taxable – Basis</label>
           <input type="number" id="b-tax-basis" value="${config.buckets.taxable.startBasis}" min="0"></div>
       </div>`;
-    document.getElementById('b-trad').addEventListener('input', e => { config.buckets.traditional.startBalance = +e.target.value; onConfigChange(); });
-    document.getElementById('b-roth').addEventListener('input', e => { config.buckets.roth.startBalance = +e.target.value; onConfigChange(); });
-    document.getElementById('b-tax-bal').addEventListener('input', e => { config.buckets.taxable.startBalance = +e.target.value; onConfigChange(); });
-    document.getElementById('b-tax-basis').addEventListener('input', e => { config.buckets.taxable.startBasis = +e.target.value; onConfigChange(); });
+    document.getElementById('b-trad').addEventListener('input', e => { config.buckets.traditional.startBalance = +e.target.value; runSim(); });
+    document.getElementById('b-roth').addEventListener('input', e => { config.buckets.roth.startBalance = +e.target.value; runSim(); });
+    document.getElementById('b-tax-bal').addEventListener('input', e => { config.buckets.taxable.startBalance = +e.target.value; runSim(); });
+    document.getElementById('b-tax-basis').addEventListener('input', e => { config.buckets.taxable.startBasis = +e.target.value; runSim(); });
   }
 
   function renderOrder() {
@@ -530,7 +530,7 @@
 
   function updateCI(i, field, val) {
     config.contributionIntervals[i][field] = val;
-    onConfigChange();
+    runSim();
   }
   function addCI() {
     config.contributionIntervals.push({ bucket: 'traditional', startAge: config.startAge, endAge: config.retirementAge, monthly: 500, annualRate: 0.07 });
@@ -566,11 +566,11 @@
 
   function updateSI(i, field, val) {
     config.spendIntervals[i][field] = val;
-    onConfigChange();
+    runSim();
   }
   function updateSIRate(i, bucket, val) {
     config.spendIntervals[i].rates[bucket] = val;
-    onConfigChange();
+    runSim();
   }
   function addSI() {
     config.spendIntervals.push({ startAge: config.retirementAge, endAge: config.endAge, monthlySpend: 8000, rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } });
@@ -753,16 +753,9 @@
 
   // === MAIN LOOP ===
 
-  function onConfigChange() {
-    // Re-render all controls (so indexes stay in sync after add/remove)
-    renderGlobal();
-    renderBuckets();
-    renderOrder();
-    renderContributions();
-    renderSpend();
-    renderSaveLoad();
-
-    // Validate
+  // Validate + simulate + render outputs only (no control DOM rebuild).
+  // Used by value-change handlers so they don't steal focus mid-keystroke.
+  function runSim() {
     const { errors, warnings } = validateConfig(config);
     if (errors.length > 0) {
       showBanner('error', errors.join(' | '));
@@ -774,12 +767,23 @@
       showBanner(null, null);
     }
 
-    // Simulate and render outputs
     const result = simulate(config);
     if (!result) return;
     renderCharts(result);
     renderSummary(result);
     renderTable(result);
+  }
+
+  // Full re-render of all controls + sim. Used when structure changes
+  // (add/remove interval, reorder, load config) where index rebinding is needed.
+  function onConfigChange() {
+    renderGlobal();
+    renderBuckets();
+    renderOrder();
+    renderContributions();
+    renderSpend();
+    renderSaveLoad();
+    runSim();
   }
 
   // Initialize on load
