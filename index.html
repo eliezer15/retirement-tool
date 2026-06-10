@@ -381,6 +381,59 @@
     };
   }
 
+  // === UI STATE ===
+
+  let config = {
+    version: 1,
+    startAge: 35,
+    retirementAge: 65,
+    endAge: 95,
+    buckets: {
+      traditional: { startBalance: 100000 },
+      roth:        { startBalance: 50000 },
+      taxable:     { startBalance: 80000, startBasis: 70000 }
+    },
+    contributionIntervals: [
+      { bucket: 'traditional', startAge: 35, endAge: 65, monthly: 1500, annualRate: 0.07 },
+      { bucket: 'roth',        startAge: 35, endAge: 65, monthly: 500,  annualRate: 0.07 },
+      { bucket: 'taxable',     startAge: 35, endAge: 65, monthly: 1000, annualRate: 0.06 }
+    ],
+    spendIntervals: [
+      { startAge: 65, endAge: 95, monthlySpend: 10000,
+        rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } }
+    ],
+    withdrawalOrder: ['taxable', 'traditional', 'roth']
+  };
+
+  // === SAVE / LOAD ===
+
+  function saveConfig() {
+    const json = JSON.stringify(config, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'retirement-config.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function loadConfigFromText(text) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      showBanner('error', 'Invalid JSON — could not parse.');
+      return false;
+    }
+    // Basic schema check
+    if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals) {
+      showBanner('error', 'JSON is missing required fields (buckets, contributionIntervals, spendIntervals).');
+      return false;
+    }
+    config = parsed;
+    return true;
+  }
+
   </script>
 </body>
 </html>
