@@ -219,6 +219,7 @@
     td.tax-val    { color: #f43f5e; }
     td.cg-val     { color: #f59e0b; }
     td.net-val    { color: #10b981; font-weight: 600; }
+    td.penalty-val { color: #f97316; }
     td.total-val  { color: #0f172a; font-weight: 700; }
     td.dash       { color: #cbd5e1; }
   </style>
@@ -971,7 +972,8 @@
 
     document.getElementById('legend-tax').innerHTML =
       `<span><span class="legend-swatch" style="background:#f43f5e"></span>Ordinary Income Tax</span>` +
-      `<span><span class="legend-swatch" style="background:#f59e0b"></span>Capital Gains Tax</span>`;
+      `<span><span class="legend-swatch" style="background:#f59e0b"></span>Capital Gains Tax</span>` +
+      `<span><span class="legend-swatch" style="background:#f97316"></span>Early Withdrawal Penalty</span>`;
 
     if (taxChart) taxChart.destroy();
     taxChart = new Chart(taxCtx, {
@@ -979,8 +981,9 @@
       data: {
         labels: retYears.map(y => y.age),
         datasets: [
-          { label: 'Ordinary Income Tax', data: retYears.map(y => Math.round(y.ordinaryTax)), backgroundColor: 'rgba(244,63,94,0.75)' },
-          { label: 'Capital Gains Tax',   data: retYears.map(y => Math.round(y.capGainsTax)), backgroundColor: 'rgba(245,158,11,0.75)' },
+          { label: 'Ordinary Income Tax',     data: retYears.map(y => Math.round(y.ordinaryTax)),  backgroundColor: 'rgba(244,63,94,0.75)'  },
+          { label: 'Capital Gains Tax',        data: retYears.map(y => Math.round(y.capGainsTax)), backgroundColor: 'rgba(245,158,11,0.75)' },
+          { label: 'Early Withdrawal Penalty', data: retYears.map(y => Math.round(y.penaltyTax)),  backgroundColor: 'rgba(249,115,22,0.75)' },
         ]
       },
       options: {
@@ -1039,13 +1042,14 @@
         <td>${isSpend(y) ? fmt(y.withdrawn) : '<span class="dash">—</span>'}</td>
         <td class="${isSpend(y) && y.ordinaryTax > 0 ? 'tax-val' : 'dash'}">${isSpend(y) ? fmt(y.ordinaryTax) : '—'}</td>
         <td class="${isSpend(y) && y.capGainsTax > 0 ? 'cg-val' : 'dash'}">${isSpend(y) ? fmt(y.capGainsTax) : '—'}</td>
+        <td class="${isSpend(y) && y.penaltyTax > 0 ? 'penalty-val' : 'dash'}">${isSpend(y) ? fmt(y.penaltyTax) : '—'}</td>
         <td class="${isSpend(y) && y.totalTax > 0 ? 'tax-val' : 'dash'}">${isSpend(y) ? fmt(y.totalTax) : '—'}</td>
         <td class="${isSpend(y) ? 'net-val' : 'dash'}">${isSpend(y) ? fmt(y.netSpendable) : '—'}</td>
       </tr>`).join('');
     document.getElementById('detail-table').innerHTML = `
       <thead><tr>
         <th>Age</th><th>Traditional</th><th>Roth</th><th>Taxable</th><th>Total</th>
-        <th>Withdrawn</th><th>Ord. Tax</th><th>CG Tax</th><th>Total Tax</th><th>Net Spendable</th>
+        <th>Withdrawn</th><th>Ord. Tax</th><th>CG Tax</th><th>Penalty</th><th>Total Tax</th><th>Net Spendable</th>
       </tr></thead>
       <tbody>${rows}</tbody>`;
   }
