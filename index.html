@@ -590,7 +590,7 @@
     endAge: 95,
     buckets: {
       traditional: { startBalance: 100000 },
-      roth:        { startBalance: 50000 },
+      roth:        { startBalance: 50000, startBasis: 50000 },
       taxable:     { startBalance: 80000, startBasis: 70000 }
     },
     contributionIntervals: [
@@ -698,6 +698,10 @@
         <span class="bucket-name">Roth</span>
         <input type="number" id="b-roth" value="${config.buckets.roth.startBalance}" min="0">
       </div>
+      <div class="bucket-row bucket-basis">
+        <span class="bucket-name" style="color:#94a3b8;font-size:11px">└ Basis</span>
+        <input type="number" id="b-roth-basis" value="${config.buckets.roth.startBasis ?? config.buckets.roth.startBalance}" min="0">
+      </div>
       <div class="bucket-row">
         <span class="bucket-dot dot-taxable"></span>
         <span class="bucket-name">Taxable</span>
@@ -709,6 +713,7 @@
       </div>`;
     document.getElementById('b-trad').addEventListener('input', e => { config.buckets.traditional.startBalance = +e.target.value; runSim(); });
     document.getElementById('b-roth').addEventListener('input', e => { config.buckets.roth.startBalance = +e.target.value; runSim(); });
+    document.getElementById('b-roth-basis').addEventListener('input', e => { config.buckets.roth.startBasis = +e.target.value; runSim(); });
     document.getElementById('b-tax-bal').addEventListener('input', e => { config.buckets.taxable.startBalance = +e.target.value; runSim(); });
     document.getElementById('b-tax-basis').addEventListener('input', e => { config.buckets.taxable.startBasis = +e.target.value; runSim(); });
   }
