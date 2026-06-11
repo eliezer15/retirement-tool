@@ -4,79 +4,279 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Retirement Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f5f5f5; color: #222; }
-    h1 { margin: 0 0 16px; font-size: 1.4rem; }
-    h2 { font-size: 1rem; margin: 16px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-    .card { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-    label { display: block; font-size: .85rem; color: #555; margin-bottom: 2px; }
-    input[type=number], input[type=text], select, textarea {
-      border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: .9rem; width: 100%;
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      margin: 0; padding: 20px 24px 40px;
+      background: #f1f5f9; color: #0f172a;
+      font-size: 13px;
     }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; }
-    .field { flex: 1; min-width: 100px; }
-    button {
-      padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer;
-      font-size: .85rem; background: #2563eb; color: #fff;
+
+    /* ── App header ── */
+    #app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
     }
-    button.secondary { background: #6b7280; }
-    button.danger { background: #dc2626; }
-    button.small { padding: 3px 8px; font-size: .78rem; }
-    .interval-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 8px; padding: 8px; background: #f9fafb; border-radius: 4px; border: 1px solid #e5e7eb; }
-    .interval-row .field { min-width: 80px; }
-    #banner { display: none; padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: .9rem; }
+    #app-header .brand { display: flex; align-items: center; gap: 10px; }
+    #app-header .brand-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    #app-header .brand-name { font-size: 15px; font-weight: 700; color: #0f172a; letter-spacing: -.01em; }
+    #app-header .brand-sub  { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+    #app-header .header-actions { display: flex; gap: 8px; }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff; border-radius: 12px; padding: 18px 20px;
+      margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      border: 1px solid #f1f5f9;
+    }
+
+    /* ── Section headers inside cards ── */
+    .section-label {
+      font-size: 11px; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: .07em;
+      margin-bottom: 14px;
+    }
+    .chart-title {
+      font-size: 14px; font-weight: 600; color: #0f172a;
+    }
+
+    /* ── Validation banner ── */
+    #banner {
+      display: none; padding: 10px 16px; border-radius: 8px;
+      margin-bottom: 14px; font-size: .88rem; font-weight: 500;
+    }
     #banner.error { background: #fee2e2; color: #991b1b; display: block; }
     #banner.warn  { background: #fef9c3; color: #854d0e; display: block; }
-    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-    .summary-card { background: #eff6ff; border-radius: 6px; padding: 10px 14px; }
-    .summary-card .val { font-size: 1.3rem; font-weight: 700; color: #1d4ed8; }
-    .summary-card .lbl { font-size: .78rem; color: #6b7280; margin-top: 2px; }
-    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-    th { background: #f1f5f9; padding: 6px 8px; text-align: right; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
-    th:first-child { text-align: left; }
-    td { padding: 5px 8px; text-align: right; border-bottom: 1px solid #f1f5f9; }
-    td:first-child { text-align: left; font-weight: 600; }
-    tr:hover td { background: #f8fafc; }
-    .order-list { list-style: none; padding: 0; margin: 0; }
-    .order-list li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-    .chart-wrap { position: relative; height: 320px; }
-    .chart-wrap-sm { position: relative; height: 220px; }
-    #saveload-area { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
-    #saveload-area textarea { width: 320px; height: 60px; font-size: .78rem; resize: vertical; }
-    .phase-badge { font-size: .72rem; font-weight: 600; padding: 2px 6px; border-radius: 10px; margin-left: 4px; }
-    .badge-acc { background: #dcfce7; color: #166534; }
+
+    /* ── Form elements ── */
+    label { display: block; font-size: 10px; color: #94a3b8; margin-bottom: 3px; font-weight: 500; }
+
+    input[type=number], input[type=text], select, textarea {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 7px 10px; font-size: 13px; font-weight: 600; color: #0f172a;
+      width: 100%; font-family: inherit; outline: none;
+      transition: border-color .15s, background .15s;
+    }
+    input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus {
+      background: #eef2ff; border: 1.5px solid #c7d2fe;
+    }
+    select { font-weight: 500; }
+    textarea { font-weight: 400; font-size: 11px; resize: vertical; }
+
+    /* Retirement age input gets persistent indigo tint */
+    input#g-retire {
+      background: #eef2ff; border: 1.5px solid #c7d2fe; color: #4338ca;
+    }
+
+    /* ── Buttons ── */
+    button {
+      padding: 7px 16px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      background: #6366f1; color: #fff; transition: opacity .15s;
+    }
+    button:hover { opacity: .88; }
+    button.secondary {
+      background: #fff; color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    button.secondary:hover { background: #f8fafc; opacity: 1; }
+    button.danger { background: transparent; color: #f43f5e; border: none; font-size: 16px; padding: 0 4px; }
+    button.danger:hover { opacity: .7; }
+    button.small { padding: 3px 8px; font-size: .78rem; }
+    button.add-interval {
+      width: 100%; background: transparent; color: #6366f1;
+      border: 1.5px dashed #c7d2fe; border-radius: 8px;
+      padding: 7px; font-size: 11px; margin-top: 6px;
+    }
+    button.add-interval:hover { background: #eef2ff; opacity: 1; }
+    button.add-interval.spend-variant { color: #db2777; border-color: #fbcfe8; }
+    button.add-interval.spend-variant:hover { background: #fdf2f8; }
+
+    /* ── Layout helpers ── */
+    .row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .field { flex: 1; min-width: 90px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+    /* ── Bucket color dots ── */
+    .bucket-dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block;
+    }
+    .dot-traditional { background: #6366f1; }
+    .dot-roth        { background: #10b981; }
+    .dot-taxable     { background: #f59e0b; }
+
+    /* ── Bucket balance rows ── */
+    .bucket-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .bucket-row .bucket-name { font-size: 12px; color: #475569; flex: 1; font-weight: 500; }
+    .bucket-row input { max-width: 130px; }
+    .bucket-basis { padding-left: 20px; }
+
+    /* ── Withdrawal order list ── */
+    .order-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .order-list li {
+      display: flex; align-items: center; gap: 8px;
+      background: #f8fafc; border-radius: 8px; padding: 8px 10px;
+    }
+    .order-num { font-size: 11px; font-weight: 700; color: #94a3b8; width: 14px; }
+    .order-name { font-size: 12px; font-weight: 600; color: #0f172a; flex: 1; }
+    .order-btns { display: flex; gap: 3px; }
+    .order-btns button {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 5px;
+      width: 22px; height: 22px; font-size: 10px; color: #94a3b8;
+      padding: 0; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Interval rows ── */
+    .interval-row {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 8px;
+    }
+    .interval-row-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .interval-row-header .interval-title { font-size: 12px; font-weight: 600; color: #0f172a; flex: 1; }
+    .interval-fields { display: grid; gap: 8px; }
+    .interval-fields.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .interval-fields.cols-6 { grid-template-columns: repeat(6, 1fr); }
+    .interval-field label { font-size: 9px; color: #94a3b8; margin-bottom: 3px; font-weight: 600; }
+    .interval-field input { padding: 5px 7px; font-size: 11px; }
+
+    /* ── Phase badges ── */
+    .phase-badge { font-size: 10px; font-weight: 600; padding: 2px 9px; border-radius: 20px; margin-left: 6px; }
+    .badge-acc   { background: #dbeafe; color: #1d4ed8; }
     .badge-spend { background: #fce7f3; color: #9d174d; }
+
+    /* ── Save/Load ── */
+    .saveload-stack { display: flex; flex-direction: column; gap: 8px; }
+    .saveload-stack textarea { height: 52px; }
+
+    /* ── Summary cards ── */
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    }
+    .summary-card { background: #fff; border-radius: 12px; padding: 16px 18px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .summary-card .s-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+    .summary-card .s-val   { font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+    .summary-card .s-sub   { font-size: 10px; color: #cbd5e1; margin-top: 5px; }
+    .s-val.indigo  { color: #6366f1; }
+    .s-val.green   { color: #10b981; }
+    .s-val.red     { color: #f43f5e; }
+    .s-val.slate   { color: #0f172a; }
+
+    /* ── Charts ── */
+    .chart-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .chart-legend {
+      display: flex; gap: 14px; flex-wrap: wrap;
+    }
+    .chart-legend span {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: #94a3b8; font-weight: 500;
+    }
+    .legend-swatch {
+      width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
+    }
+    .legend-line {
+      width: 20px; height: 0; border-top: 2.5px dashed #374151; flex-shrink: 0;
+    }
+    .chart-wrap    { position: relative; height: 320px; }
+    .chart-wrap-sm { position: relative; height: 220px; }
+    .chart-axis-labels {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: #94a3b8; margin-top: 6px; padding: 0 4px;
+    }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+      background: #f8fafc; padding: 8px 10px; text-align: right;
+      border-bottom: 2px solid #e2e8f0; white-space: nowrap;
+      font-size: 10px; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    th:first-child { text-align: left; }
+    td { padding: 7px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; color: #475569; }
+    td:first-child { text-align: left; font-weight: 700; color: #0f172a; }
+    tr:nth-child(even) td { background: #fafafa; }
+    tr:hover td { background: #f1f5f9; }
+    td.retire-age { color: #6366f1 !important; }
+    td.tax-val    { color: #f43f5e; }
+    td.cg-val     { color: #f59e0b; }
+    td.net-val    { color: #10b981; font-weight: 600; }
+    td.total-val  { color: #0f172a; font-weight: 700; }
+    td.dash       { color: #cbd5e1; }
   </style>
 </head>
 <body>
-  <h1>Retirement Visualizer</h1>
+
+  <!-- App Header -->
+  <div id="app-header">
+    <div class="brand">
+      <div class="brand-icon">💰</div>
+      <div>
+        <div class="brand-name">Retirement Visualizer</div>
+        <div class="brand-sub">2026 MFJ Tax Model</div>
+      </div>
+    </div>
+    <div class="header-actions" id="header-actions"></div>
+  </div>
+
   <div id="banner"></div>
 
-  <!-- Controls -->
+  <!-- Controls row 1: Global settings (full width) -->
   <div class="card" id="ctrl-global"></div>
-  <div class="card" id="ctrl-buckets"></div>
-  <div class="card" id="ctrl-order"></div>
-  <div class="card" id="ctrl-contributions"></div>
-  <div class="card" id="ctrl-spend"></div>
-  <div class="card" id="ctrl-saveload"></div>
 
-  <!-- Outputs -->
+  <!-- Controls row 2: Balances | Withdrawal Order | Save/Load -->
+  <div class="grid-3">
+    <div class="card" id="ctrl-buckets"></div>
+    <div class="card" id="ctrl-order"></div>
+    <div class="card" id="ctrl-saveload"></div>
+  </div>
+
+  <!-- Controls row 3: Contribution Intervals | Spend Intervals -->
+  <div class="grid-2">
+    <div class="card" id="ctrl-contributions"></div>
+    <div class="card" id="ctrl-spend"></div>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="summary-grid" id="summary-grid" style="margin-bottom:14px"></div>
+
+  <!-- Charts -->
   <div class="card">
-    <h2>Portfolio Balance by Age</h2>
+    <div class="chart-header">
+      <div class="chart-title">Portfolio Balance by Age</div>
+      <div class="chart-legend" id="legend-balance"></div>
+    </div>
     <div class="chart-wrap"><canvas id="chart-balance"></canvas></div>
   </div>
   <div class="card">
-    <h2>Annual Tax Breakdown</h2>
+    <div class="chart-header">
+      <div class="chart-title">Annual Tax Breakdown</div>
+      <div class="chart-legend" id="legend-tax"></div>
+    </div>
     <div class="chart-wrap-sm"><canvas id="chart-tax"></canvas></div>
   </div>
-  <div class="card" id="summary-panel">
-    <h2>Summary</h2>
-    <div class="summary-grid" id="summary-grid"></div>
-  </div>
+
+  <!-- Table -->
   <div class="card">
-    <h2>Year-by-Year Detail</h2>
+    <div class="chart-title" style="margin-bottom:14px">Year-by-Year Detail</div>
     <div style="overflow-x:auto"><table id="detail-table"></table></div>
   </div>
 
@@ -457,11 +657,12 @@
   // === RENDER UI ===
 
   const BUCKET_LABELS = { traditional: 'Traditional', roth: 'Roth', taxable: 'Taxable' };
+  const BUCKET_DOT_CLASS = { traditional: 'dot-traditional', roth: 'dot-roth', taxable: 'dot-taxable' };
 
   function showBanner(type, msg) {
     const el = document.getElementById('banner');
     if (!msg) { el.className = ''; el.textContent = ''; return; }
-    el.className = type; // 'error' or 'warn'
+    el.className = type;
     el.textContent = msg;
   }
 
@@ -470,7 +671,7 @@
 
   function renderGlobal() {
     document.getElementById('ctrl-global').innerHTML = `
-      <h2>Global Settings</h2>
+      <div class="section-label">Global Settings</div>
       <div class="row">
         <div class="field"><label>Start Age</label>
           <input type="number" id="g-start" value="${config.startAge}" min="18" max="80"></div>
@@ -486,16 +687,25 @@
 
   function renderBuckets() {
     document.getElementById('ctrl-buckets').innerHTML = `
-      <h2>Starting Balances</h2>
-      <div class="row">
-        <div class="field"><label>Traditional – Balance</label>
-          <input type="number" id="b-trad" value="${config.buckets.traditional.startBalance}" min="0"></div>
-        <div class="field"><label>Roth – Balance</label>
-          <input type="number" id="b-roth" value="${config.buckets.roth.startBalance}" min="0"></div>
-        <div class="field"><label>Taxable – Balance</label>
-          <input type="number" id="b-tax-bal" value="${config.buckets.taxable.startBalance}" min="0"></div>
-        <div class="field"><label>Taxable – Basis</label>
-          <input type="number" id="b-tax-basis" value="${config.buckets.taxable.startBasis}" min="0"></div>
+      <div class="section-label">Starting Balances</div>
+      <div class="bucket-row">
+        <span class="bucket-dot dot-traditional"></span>
+        <span class="bucket-name">Traditional</span>
+        <input type="number" id="b-trad" value="${config.buckets.traditional.startBalance}" min="0">
+      </div>
+      <div class="bucket-row">
+        <span class="bucket-dot dot-roth"></span>
+        <span class="bucket-name">Roth</span>
+        <input type="number" id="b-roth" value="${config.buckets.roth.startBalance}" min="0">
+      </div>
+      <div class="bucket-row">
+        <span class="bucket-dot dot-taxable"></span>
+        <span class="bucket-name">Taxable</span>
+        <input type="number" id="b-tax-bal" value="${config.buckets.taxable.startBalance}" min="0">
+      </div>
+      <div class="bucket-row bucket-basis">
+        <span class="bucket-name" style="color:#94a3b8;font-size:11px">└ Basis</span>
+        <input type="number" id="b-tax-basis" value="${config.buckets.taxable.startBasis}" min="0">
       </div>`;
     document.getElementById('b-trad').addEventListener('input', e => { config.buckets.traditional.startBalance = +e.target.value; runSim(); });
     document.getElementById('b-roth').addEventListener('input', e => { config.buckets.roth.startBalance = +e.target.value; runSim(); });
@@ -505,13 +715,17 @@
 
   function renderOrder() {
     const el = document.getElementById('ctrl-order');
-    el.innerHTML = `<h2>Withdrawal Order <span style="font-size:.8rem;color:#6b7280">(use arrows to reorder)</span></h2>
+    el.innerHTML = `<div class="section-label">Withdrawal Order</div>
       <ul class="order-list" id="order-list">
         ${config.withdrawalOrder.map((b, i) => `
           <li data-bucket="${b}">
-            <strong style="min-width:90px">${BUCKET_LABELS[b]}</strong>
-            <button class="small secondary" onclick="moveOrder(${i}, -1)" ${i===0?'disabled':''}>▲</button>
-            <button class="small secondary" onclick="moveOrder(${i},  1)" ${i===config.withdrawalOrder.length-1?'disabled':''}>▼</button>
+            <span class="order-num">${i + 1}</span>
+            <span class="bucket-dot ${BUCKET_DOT_CLASS[b]}"></span>
+            <span class="order-name">${BUCKET_LABELS[b]}</span>
+            <div class="order-btns">
+              <button onclick="moveOrder(${i}, -1)" ${i===0?'disabled':''}>▲</button>
+              <button onclick="moveOrder(${i},  1)" ${i===config.withdrawalOrder.length-1?'disabled':''}>▼</button>
+            </div>
           </li>`).join('')}
       </ul>`;
   }
@@ -528,24 +742,27 @@
     const el = document.getElementById('ctrl-contributions');
     const rows = config.contributionIntervals.map((ci, i) => `
       <div class="interval-row">
-        <div class="field"><label>Bucket</label>
-          <select oninput="updateCI(${i},'bucket',this.value)">
+        <div class="interval-row-header">
+          <span class="bucket-dot ${BUCKET_DOT_CLASS[ci.bucket]}"></span>
+          <select class="interval-title" style="background:transparent;border:none;padding:0;font-size:12px;font-weight:600;color:#0f172a;width:auto;cursor:pointer" oninput="updateCI(${i},'bucket',this.value)">
             ${['traditional','roth','taxable'].map(b =>
               `<option value="${b}" ${ci.bucket===b?'selected':''}>${BUCKET_LABELS[b]}</option>`).join('')}
-          </select></div>
-        <div class="field"><label>Start Age</label>
-          <input type="number" value="${ci.startAge}" min="0" max="120" oninput="updateCI(${i},'startAge',+this.value)"></div>
-        <div class="field"><label>End Age</label>
-          <input type="number" value="${ci.endAge}" min="0" max="120" oninput="updateCI(${i},'endAge',+this.value)"></div>
-        <div class="field"><label>Monthly $</label>
-          <input type="number" value="${ci.monthly}" min="0" oninput="updateCI(${i},'monthly',+this.value)"></div>
-        <div class="field"><label>Annual Rate %</label>
-          <input type="number" value="${(ci.annualRate*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateCI(${i},'annualRate',+this.value/100)"></div>
-        <div style="align-self:flex-end"><button class="small danger" onclick="removeCI(${i})">✕</button></div>
+          </select>
+          <button class="danger" onclick="removeCI(${i})">×</button>
+        </div>
+        <div class="interval-fields cols-4">
+          <div class="interval-field"><label>From Age</label><input type="number" value="${ci.startAge}" min="0" max="120" oninput="updateCI(${i},'startAge',+this.value)"></div>
+          <div class="interval-field"><label>To Age</label><input type="number" value="${ci.endAge}" min="0" max="120" oninput="updateCI(${i},'endAge',+this.value)"></div>
+          <div class="interval-field"><label>$/Month</label><input type="number" value="${ci.monthly}" min="0" oninput="updateCI(${i},'monthly',+this.value)"></div>
+          <div class="interval-field"><label>Rate %</label><input type="number" value="${(ci.annualRate*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateCI(${i},'annualRate',+this.value/100)"></div>
+        </div>
       </div>`).join('');
-    el.innerHTML = `<h2>Contribution Intervals <span class="phase-badge badge-acc">Accumulation</span></h2>
+    el.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:14px">
+        <span class="section-label" style="margin-bottom:0">Contribution Intervals</span>
+        <span class="phase-badge badge-acc">Accumulation</span>
+      </div>
       <div id="ci-list">${rows}</div>
-      <button onclick="addCI()" style="margin-top:8px">+ Add Interval</button>`;
+      <button class="add-interval" onclick="addCI()">+ Add Interval</button>`;
   }
 
   function updateCI(i, field, val) {
@@ -565,23 +782,25 @@
     const el = document.getElementById('ctrl-spend');
     const rows = config.spendIntervals.map((si, i) => `
       <div class="interval-row">
-        <div class="field"><label>Start Age</label>
-          <input type="number" value="${si.startAge}" min="0" max="120" oninput="updateSI(${i},'startAge',+this.value)"></div>
-        <div class="field"><label>End Age</label>
-          <input type="number" value="${si.endAge}" min="0" max="120" oninput="updateSI(${i},'endAge',+this.value)"></div>
-        <div class="field"><label>Monthly Spend $</label>
-          <input type="number" value="${si.monthlySpend}" min="0" oninput="updateSI(${i},'monthlySpend',+this.value)"></div>
-        <div class="field"><label>Trad Rate %</label>
-          <input type="number" value="${(si.rates.traditional*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'traditional',+this.value/100)"></div>
-        <div class="field"><label>Roth Rate %</label>
-          <input type="number" value="${(si.rates.roth*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'roth',+this.value/100)"></div>
-        <div class="field"><label>Taxable Rate %</label>
-          <input type="number" value="${(si.rates.taxable*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'taxable',+this.value/100)"></div>
-        <div style="align-self:flex-end"><button class="small danger" onclick="removeSI(${i})">✕</button></div>
+        <div class="interval-row-header">
+          <span class="interval-title">Ages ${si.startAge}–${si.endAge}</span>
+          <button class="danger" onclick="removeSI(${i})">×</button>
+        </div>
+        <div class="interval-fields cols-6" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr">
+          <div class="interval-field"><label>From Age</label><input type="number" value="${si.startAge}" min="0" max="120" oninput="updateSI(${i},'startAge',+this.value)"></div>
+          <div class="interval-field"><label>To Age</label><input type="number" value="${si.endAge}" min="0" max="120" oninput="updateSI(${i},'endAge',+this.value)"></div>
+          <div class="interval-field"><label>$/Month</label><input type="number" value="${si.monthlySpend}" min="0" oninput="updateSI(${i},'monthlySpend',+this.value)"></div>
+          <div class="interval-field"><label style="color:#6366f1">Trad %</label><input type="number" value="${(si.rates.traditional*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'traditional',+this.value/100)"></div>
+          <div class="interval-field"><label style="color:#10b981">Roth %</label><input type="number" value="${(si.rates.roth*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'roth',+this.value/100)"></div>
+          <div class="interval-field"><label style="color:#f59e0b">Taxable %</label><input type="number" value="${(si.rates.taxable*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'taxable',+this.value/100)"></div>
+        </div>
       </div>`).join('');
-    el.innerHTML = `<h2>Spend Intervals <span class="phase-badge badge-spend">Retirement</span></h2>
+    el.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:14px">
+        <span class="section-label" style="margin-bottom:0">Spend Intervals</span>
+        <span class="phase-badge badge-spend">Retirement</span>
+      </div>
       <div id="si-list">${rows}</div>
-      <button onclick="addSI()" style="margin-top:8px">+ Add Interval</button>`;
+      <button class="add-interval spend-variant" onclick="addSI()">+ Add Interval</button>`;
   }
 
   function updateSI(i, field, val) {
@@ -603,17 +822,13 @@
 
   function renderSaveLoad() {
     document.getElementById('ctrl-saveload').innerHTML = `
-      <h2>Save / Load</h2>
-      <div id="saveload-area">
+      <div class="section-label">Save / Load</div>
+      <div class="saveload-stack">
         <button onclick="saveConfig()">⬇ Download JSON</button>
-        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
-          <button class="secondary" onclick="document.getElementById('file-input').click()">⬆ Upload JSON</button>
-          <input type="file" id="file-input" accept=".json" style="display:none">
-        </label>
-        <div>
-          <textarea id="paste-area" placeholder="Paste JSON here…"></textarea>
-          <button class="secondary" onclick="applyPasted()" style="margin-top:4px">Apply Pasted JSON</button>
-        </div>
+        <button class="secondary" onclick="document.getElementById('file-input').click()">⬆ Upload JSON</button>
+        <input type="file" id="file-input" accept=".json" style="display:none">
+        <textarea id="paste-area" placeholder="Or paste JSON here…"></textarea>
+        <button class="secondary" onclick="applyPasted()">Apply Pasted JSON</button>
       </div>`;
     document.getElementById('file-input').addEventListener('change', e => {
       const file = e.target.files[0];
@@ -638,9 +853,9 @@
   let taxChart = null;
 
   const BUCKET_COLORS = {
-    traditional: { bg: 'rgba(59,130,246,0.6)',  border: '#2563eb' },
-    roth:        { bg: 'rgba(16,185,129,0.6)',   border: '#059669' },
-    taxable:     { bg: 'rgba(251,191,36,0.6)',   border: '#d97706' },
+    traditional: { bg: 'rgba(99,102,241,0.5)',  border: '#6366f1' },
+    roth:        { bg: 'rgba(16,185,129,0.5)',   border: '#10b981' },
+    taxable:     { bg: 'rgba(245,158,11,0.5)',   border: '#f59e0b' },
   };
 
   function renderCharts(result) {
@@ -673,6 +888,13 @@
       pointRadius: 0,
     });
 
+    // Build HTML legend for balance chart
+    document.getElementById('legend-balance').innerHTML =
+      ['traditional','roth','taxable'].map(b =>
+        `<span><span class="legend-swatch" style="background:${BUCKET_COLORS[b].border}"></span>${BUCKET_LABELS[b]}</span>`
+      ).join('') +
+      `<span><span class="legend-line"></span>Total</span>`;
+
     if (balanceChart) balanceChart.destroy();
     balanceChart = new Chart(balCtx, {
       type: 'line',
@@ -682,14 +904,14 @@
         plugins: {
           tooltip: { mode: 'index', intersect: false,
             callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } },
-          legend: { position: 'top' },
+          legend: { display: false },
         },
         scales: {
-          x: { title: { display: true, text: 'Age' } },
-          y: { stacked: true, title: { display: true, text: 'Balance ($)' },
-            ticks: { callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : (v/1e3).toFixed(0)+'K') } },
+          x: { grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+          y: { stacked: true, grid: { color: '#f1f5f9' },
+            ticks: { color: '#94a3b8', font: { size: 11 },
+              callback: v => '$' + (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : (v/1e3).toFixed(0)+'K') } },
         },
-        animation: false,
       },
       plugins: [{
         id: 'retireLine',
@@ -706,8 +928,8 @@
           ctx.setLineDash([4, 3]);
           ctx.stroke();
           ctx.fillStyle = '#ef4444';
-          ctx.font = '11px system-ui';
-          ctx.fillText('Retirement', x + 4, chart.chartArea.top + 14);
+          ctx.font = '600 11px Inter,system-ui,sans-serif';
+          ctx.fillText('Retirement', x + 5, chart.chartArea.top + 14);
           ctx.restore();
         }
       }],
@@ -716,24 +938,33 @@
     // --- Tax chart (stacked bar, retirement years only) ---
     const taxCtx = document.getElementById('chart-tax').getContext('2d');
     const retYears = years.filter(y => y.age > config.retirementAge);
+
+    document.getElementById('legend-tax').innerHTML =
+      `<span><span class="legend-swatch" style="background:#f43f5e"></span>Ordinary Income Tax</span>` +
+      `<span><span class="legend-swatch" style="background:#f59e0b"></span>Capital Gains Tax</span>`;
+
     if (taxChart) taxChart.destroy();
     taxChart = new Chart(taxCtx, {
       type: 'bar',
       data: {
         labels: retYears.map(y => y.age),
         datasets: [
-          { label: 'Ordinary Income Tax', data: retYears.map(y => Math.round(y.ordinaryTax)), backgroundColor: 'rgba(239,68,68,0.7)' },
-          { label: 'Capital Gains Tax',   data: retYears.map(y => Math.round(y.capGainsTax)), backgroundColor: 'rgba(245,158,11,0.7)' },
+          { label: 'Ordinary Income Tax', data: retYears.map(y => Math.round(y.ordinaryTax)), backgroundColor: 'rgba(244,63,94,0.75)' },
+          { label: 'Capital Gains Tax',   data: retYears.map(y => Math.round(y.capGainsTax)), backgroundColor: 'rgba(245,158,11,0.75)' },
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { tooltip: { mode: 'index', intersect: false,
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } } },
+        plugins: {
+          tooltip: { mode: 'index', intersect: false,
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } },
+          legend: { display: false },
+        },
         scales: {
-          x: { stacked: true, title: { display: true, text: 'Age' } },
-          y: { stacked: true, title: { display: true, text: 'Tax ($)' },
-            ticks: { callback: v => '$' + (v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v) } },
+          x: { stacked: true, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', font: { size: 11 } } },
+          y: { stacked: true, grid: { color: '#f1f5f9' },
+            ticks: { color: '#94a3b8', font: { size: 11 },
+              callback: v => '$' + (v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v) } },
         }
       }
     });
@@ -742,26 +973,44 @@
   function renderSummary(result) {
     const s = result.summary;
     document.getElementById('summary-grid').innerHTML = `
-      <div class="summary-card"><div class="val">${fmt(s.peakNetWorth)}</div><div class="lbl">Peak Net Worth (age ${s.peakNetWorthAge})</div></div>
-      <div class="summary-card"><div class="val">${fmt(s.totalLifetimeTax)}</div><div class="lbl">Total Lifetime Tax</div></div>
-      <div class="summary-card"><div class="val">${s.ageMoneyRunsOut ?? 'Never'}</div><div class="lbl">Age Money Runs Out</div></div>
-      <div class="summary-card"><div class="val">${fmt(s.endingBalance)}</div><div class="lbl">Ending Balance (age ${config.endAge})</div></div>
+      <div class="summary-card">
+        <div class="s-label">Peak Net Worth</div>
+        <div class="s-val indigo">${fmt(s.peakNetWorth)}</div>
+        <div class="s-sub">at age ${s.peakNetWorthAge}</div>
+      </div>
+      <div class="summary-card">
+        <div class="s-label">Runs Out</div>
+        <div class="s-val green">${s.ageMoneyRunsOut ?? 'Never'}</div>
+        <div class="s-sub">within simulation</div>
+      </div>
+      <div class="summary-card">
+        <div class="s-label">Lifetime Tax</div>
+        <div class="s-val red">${fmt(s.totalLifetimeTax)}</div>
+        <div class="s-sub">total federal</div>
+      </div>
+      <div class="summary-card">
+        <div class="s-label">Ending Balance</div>
+        <div class="s-val slate">${fmt(s.endingBalance)}</div>
+        <div class="s-sub">at age ${config.endAge}</div>
+      </div>
     `;
   }
 
   function renderTable(result) {
+    const isRetireYear = y => y.age === config.retirementAge + 1;
+    const isSpend = y => y.age > config.retirementAge;
     const rows = result.years.map(y => `
       <tr>
-        <td>${y.age}</td>
+        <td class="${isRetireYear(y) ? 'retire-age' : ''}">${y.age}${isRetireYear(y) ? ' ★' : ''}</td>
         <td>${fmt(y.balances.traditional)}</td>
         <td>${fmt(y.balances.roth)}</td>
         <td>${fmt(y.balances.taxable)}</td>
-        <td>${fmt(y.totalBalance)}</td>
-        <td>${fmt(y.withdrawn)}</td>
-        <td>${fmt(y.ordinaryTax)}</td>
-        <td>${fmt(y.capGainsTax)}</td>
-        <td>${fmt(y.totalTax)}</td>
-        <td>${fmt(y.netSpendable)}</td>
+        <td class="total-val">${fmt(y.totalBalance)}</td>
+        <td>${isSpend(y) ? fmt(y.withdrawn) : '<span class="dash">—</span>'}</td>
+        <td class="${isSpend(y) && y.ordinaryTax > 0 ? 'tax-val' : 'dash'}">${isSpend(y) ? fmt(y.ordinaryTax) : '—'}</td>
+        <td class="${isSpend(y) && y.capGainsTax > 0 ? 'cg-val' : 'dash'}">${isSpend(y) ? fmt(y.capGainsTax) : '—'}</td>
+        <td class="${isSpend(y) && y.totalTax > 0 ? 'tax-val' : 'dash'}">${isSpend(y) ? fmt(y.totalTax) : '—'}</td>
+        <td class="${isSpend(y) ? 'net-val' : 'dash'}">${isSpend(y) ? fmt(y.netSpendable) : '—'}</td>
       </tr>`).join('');
     document.getElementById('detail-table').innerHTML = `
       <thead><tr>
