@@ -508,8 +508,9 @@
           remaining -= withdrawal;
           yearWithdrawn += withdrawal;
 
-          // isPenalty: penalty applies when the person is under 60 at time of withdrawal.
-          const isPenalty = ageFloat < 60;
+          // isPenalty: IRS 59½ rule — penalty applies before age 59.5.
+          // Monthly sim can represent this precisely since ageFloat is fractional.
+          const isPenalty = ageFloat < 59.5;
 
           if (b === 'traditional') {
             yearOrdinaryIncome += withdrawal;
@@ -527,7 +528,9 @@
             yearCapGainsRealized += gainsWithdrawn;
             // Taxable account: no early withdrawal penalty (not a retirement account)
           } else if (b === 'roth') {
-            // Roth: basis can be withdrawn penalty-free; only gains are penalized pre-60.
+            // Roth: basis can be withdrawn penalty-free; only gains are penalized pre-59.5.
+            // rothBasis is a running cost-basis tracker (contributions only, no growth).
+            // bal['roth'] compounds monthly, so rothGainsFrac increases within a year as the account grows.
             const rothBalBefore = bal[b] + withdrawal;
             const rothGainsFrac = rothBalBefore > 0
               ? Math.max(0, (rothBalBefore - rothBasis) / rothBalBefore)
@@ -568,6 +571,7 @@
           capGainsRealized: yearCapGainsRealized,
           ordinaryTax,
           capGainsTax,
+          penaltyBase: yearPenaltyBase,
           penaltyTax,
           totalTax: ordinaryTax + capGainsTax + penaltyTax,
           netSpendable: yearWithdrawn - (ordinaryTax + capGainsTax + penaltyTax),
