@@ -383,7 +383,7 @@
 
   // === UI STATE ===
 
-  let config = {
+  const DEFAULT_CONFIG = {
     version: 1,
     startAge: 35,
     retirementAge: 65,
@@ -404,6 +404,25 @@
     ],
     withdrawalOrder: ['taxable', 'traditional', 'roth']
   };
+
+  const STORAGE_KEY = 'retirement-visualizer-config';
+
+  function persistConfig() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch { /* quota exceeded etc. */ }
+  }
+
+  function loadPersistedConfig() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals || !parsed.withdrawalOrder) return false;
+      config = parsed;
+      return true;
+    } catch { return false; }
+  }
+
+  let config = loadPersistedConfig() ? config : { ...DEFAULT_CONFIG };
 
   // === SAVE / LOAD ===
 
@@ -431,6 +450,7 @@
       return false;
     }
     config = parsed;
+    persistConfig();
     return true;
   }
 
@@ -761,6 +781,7 @@
   // Validate + simulate + render outputs only (no control DOM rebuild).
   // Used by value-change handlers so they don't steal focus mid-keystroke.
   function runSim() {
+    persistConfig();
     const { errors, warnings } = validateConfig(config);
     if (errors.length > 0) {
       showBanner('error', errors.join(' | '));
