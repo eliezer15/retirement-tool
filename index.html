@@ -454,6 +454,7 @@
       taxable: cfg.buckets.taxable.startBalance,
     };
     let taxableBasis = cfg.buckets.taxable.startBasis ?? cfg.buckets.taxable.startBalance;
+    // rothBasis initialized below (see early-withdrawal penalty logic); roth.startBasis from config consumed there
 
     const years = [];
 
