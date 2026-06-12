@@ -640,15 +640,14 @@
   function loadPersistedConfig() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
+      if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals || !parsed.withdrawalOrder) return false;
-      config = parsed;
-      return true;
-    } catch { return false; }
+      if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals || !parsed.withdrawalOrder) return null;
+      return parsed;
+    } catch { return null; }
   }
 
-  let config = loadPersistedConfig() ? config : { ...DEFAULT_CONFIG };
+  let config = loadPersistedConfig() ?? { ...DEFAULT_CONFIG };
 
   // === SAVE / LOAD ===
 
