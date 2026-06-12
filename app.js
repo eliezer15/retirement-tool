@@ -146,7 +146,8 @@ function validateConfig(cfg) {
   }
 
   // Validate withdrawal order contains only valid bucket names
-  const VALID_BUCKETS = new Set(['traditional', 'roth', 'taxable']);
+  // 'roth-basis' is a virtual bucket meaning "Roth contributions only (basis), penalty-free"
+  const VALID_BUCKETS = new Set(['traditional', 'roth', 'taxable', 'roth-basis']);
   for (const b of (cfg.withdrawalOrder || [])) {
     if (!VALID_BUCKETS.has(b)) {
       errors.push(`withdrawalOrder contains invalid bucket name: "${b}".`);
@@ -218,44 +219,57 @@ function simulate(cfg) {
       let remaining = monthlySpend;
       for (const b of cfg.withdrawalOrder) {
         if (remaining <= 0) break;
-        const available = bal[b];
-        if (available <= 0) continue;
-        const withdrawal = Math.min(remaining, available);
-        bal[b] -= withdrawal;
-        remaining -= withdrawal;
-        yearWithdrawn += withdrawal;
 
         // isPenalty: IRS 59½ rule — penalty applies before age 59.5.
         // Monthly sim can represent this precisely since ageFloat is fractional.
         const isPenalty = ageFloat < 59.5;
 
-        if (b === 'traditional') {
-          yearOrdinaryIncome += withdrawal;
-          // All traditional withdrawals are penalized pre-60 (all pre-tax, no basis)
-          if (isPenalty) yearPenaltyBase += withdrawal;
-        } else if (b === 'taxable') {
-          // Proportional basis method: gains% = (balance_before - basis) / balance_before
-          const balanceBefore = bal[b] + withdrawal;
-          const gainsFrac = balanceBefore > 0
-            ? Math.max(0, (balanceBefore - taxableBasis) / balanceBefore)
-            : 0;
-          const gainsWithdrawn = withdrawal * gainsFrac;
-          const basisWithdrawn = withdrawal - gainsWithdrawn;
-          taxableBasis = Math.max(0, taxableBasis - basisWithdrawn);
-          yearCapGainsRealized += gainsWithdrawn;
-          // Taxable account: no early withdrawal penalty (not a retirement account)
-        } else if (b === 'roth') {
-          // Roth: basis can be withdrawn penalty-free; only gains are penalized pre-59.5.
-          // rothBasis is a running cost-basis tracker (contributions only, no growth).
-          // bal['roth'] compounds monthly, so rothGainsFrac increases within a year as the account grows.
-          const rothBalBefore = bal[b] + withdrawal;
-          const rothGainsFrac = rothBalBefore > 0
-            ? Math.max(0, (rothBalBefore - rothBasis) / rothBalBefore)
-            : 0;
-          const rothBasisWithdrawn = withdrawal * (1 - rothGainsFrac);
-          rothBasis = Math.max(0, rothBasis - rothBasisWithdrawn);
-          if (isPenalty) yearPenaltyBase += withdrawal * rothGainsFrac;
-          // Roth withdrawals are never ordinary income (no income tax, only possible penalty on gains)
+        if (b === 'roth-basis') {
+          // Virtual bucket: pull only from Roth balance up to the available basis (always penalty-free).
+          const available = Math.min(bal['roth'], rothBasis);
+          if (available <= 0) continue;
+          const withdrawal = Math.min(remaining, available);
+          bal['roth'] -= withdrawal;
+          rothBasis = Math.max(0, rothBasis - withdrawal);
+          remaining -= withdrawal;
+          yearWithdrawn += withdrawal;
+          // Roth basis: no ordinary income, no cap gains, no penalty
+        } else {
+          const available = bal[b];
+          if (available <= 0) continue;
+          const withdrawal = Math.min(remaining, available);
+          bal[b] -= withdrawal;
+          remaining -= withdrawal;
+          yearWithdrawn += withdrawal;
+
+          if (b === 'traditional') {
+            yearOrdinaryIncome += withdrawal;
+            // All traditional withdrawals are penalized pre-59.5 (all pre-tax, no basis)
+            if (isPenalty) yearPenaltyBase += withdrawal;
+          } else if (b === 'taxable') {
+            // Proportional basis method: gains% = (balance_before - basis) / balance_before
+            const balanceBefore = bal[b] + withdrawal;
+            const gainsFrac = balanceBefore > 0
+              ? Math.max(0, (balanceBefore - taxableBasis) / balanceBefore)
+              : 0;
+            const gainsWithdrawn = withdrawal * gainsFrac;
+            const basisWithdrawn = withdrawal - gainsWithdrawn;
+            taxableBasis = Math.max(0, taxableBasis - basisWithdrawn);
+            yearCapGainsRealized += gainsWithdrawn;
+            // Taxable account: no early withdrawal penalty (not a retirement account)
+          } else if (b === 'roth') {
+            // Roth gains: only gains are penalized pre-59.5.
+            // rothBasis is a running cost-basis tracker (contributions only, no growth).
+            // bal['roth'] compounds monthly, so rothGainsFrac increases within a year as the account grows.
+            const rothBalBefore = bal[b] + withdrawal;
+            const rothGainsFrac = rothBalBefore > 0
+              ? Math.max(0, (rothBalBefore - rothBasis) / rothBalBefore)
+              : 0;
+            const rothBasisWithdrawn = withdrawal * (1 - rothGainsFrac);
+            rothBasis = Math.max(0, rothBasis - rothBasisWithdrawn);
+            if (isPenalty) yearPenaltyBase += withdrawal * rothGainsFrac;
+            // Roth withdrawals are never ordinary income (no income tax, only possible penalty on gains)
+          }
         }
       }
 
@@ -282,6 +296,7 @@ function simulate(cfg) {
       years.push({
         age,
         balances: { traditional: bal.traditional, roth: bal.roth, taxable: bal.taxable },
+        rothBasis,   // current Roth basis at year-end (for chart stacking)
         totalBalance,
         withdrawn: yearWithdrawn,
         ordinaryIncome: yearOrdinaryIncome,
@@ -344,7 +359,7 @@ const DEFAULT_CONFIG = {
     { startAge: 65, endAge: 95, monthlySpend: 10000,
       rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } }
   ],
-  withdrawalOrder: ['taxable', 'traditional', 'roth']
+  withdrawalOrder: ['taxable', 'traditional', 'roth-basis', 'roth']
 };
 
 const STORAGE_KEY = 'retirement-visualizer-config';
@@ -397,8 +412,8 @@ function loadConfigFromText(text) {
 
 // === RENDER UI ===
 
-const BUCKET_LABELS = { traditional: 'Traditional', roth: 'Roth', taxable: 'Taxable' };
-const BUCKET_DOT_CLASS = { traditional: 'dot-traditional', roth: 'dot-roth', taxable: 'dot-taxable' };
+const BUCKET_LABELS = { traditional: 'Traditional', roth: 'Roth', 'roth-basis': 'Roth Basis', taxable: 'Taxable' };
+const BUCKET_DOT_CLASS = { traditional: 'dot-traditional', roth: 'dot-roth', 'roth-basis': 'dot-roth-basis', taxable: 'dot-taxable' };
 
 function showBanner(type, msg) {
   const el = document.getElementById('banner');
@@ -599,9 +614,10 @@ let balanceChart = null;
 let taxChart = null;
 
 const BUCKET_COLORS = {
-  traditional: { bg: 'rgba(99,102,241,0.5)',  border: '#6366f1' },
-  roth:        { bg: 'rgba(16,185,129,0.5)',   border: '#10b981' },
-  taxable:     { bg: 'rgba(245,158,11,0.5)',   border: '#f59e0b' },
+  traditional:  { bg: 'rgba(99,102,241,0.5)',   border: '#6366f1' },
+  roth:         { bg: 'rgba(16,185,129,0.5)',    border: '#10b981' },
+  'roth-basis': { bg: 'rgba(52,211,153,0.35)',   border: '#34d399' }, // lighter emerald — Roth basis sits inside Roth
+  taxable:      { bg: 'rgba(245,158,11,0.5)',    border: '#f59e0b' },
 };
 
 function renderCharts(result) {
@@ -612,15 +628,38 @@ function renderCharts(result) {
   const balCtx = document.getElementById('chart-balance').getContext('2d');
   const retirementIdx = years.findIndex(y => y.age >= config.retirementAge);
 
-  const balDatasets = ['traditional', 'roth', 'taxable'].map(b => ({
-    label: BUCKET_LABELS[b],
-    data: years.map(y => Math.round(y.balances[b])),
-    backgroundColor: BUCKET_COLORS[b].bg,
-    borderColor: BUCKET_COLORS[b].border,
-    borderWidth: 1.5,
-    fill: true,
-    tension: 0.3,
-  }));
+  // Stack order: Traditional | Roth Basis | Roth Gains | Taxable
+  // Roth is split: roth-basis = rothBasis, roth = bal.roth - rothBasis (gains only)
+  const balDatasets = [
+    {
+      label: BUCKET_LABELS['traditional'],
+      data: years.map(y => Math.round(y.balances.traditional)),
+      backgroundColor: BUCKET_COLORS['traditional'].bg,
+      borderColor: BUCKET_COLORS['traditional'].border,
+      borderWidth: 1.5, fill: true, tension: 0.3,
+    },
+    {
+      label: BUCKET_LABELS['roth-basis'],
+      data: years.map(y => Math.round(Math.min(y.rothBasis, y.balances.roth))),
+      backgroundColor: BUCKET_COLORS['roth-basis'].bg,
+      borderColor: BUCKET_COLORS['roth-basis'].border,
+      borderWidth: 1, fill: true, tension: 0.3,
+    },
+    {
+      label: BUCKET_LABELS['roth'],
+      data: years.map(y => Math.round(Math.max(0, y.balances.roth - y.rothBasis))),
+      backgroundColor: BUCKET_COLORS['roth'].bg,
+      borderColor: BUCKET_COLORS['roth'].border,
+      borderWidth: 1.5, fill: true, tension: 0.3,
+    },
+    {
+      label: BUCKET_LABELS['taxable'],
+      data: years.map(y => Math.round(y.balances.taxable)),
+      backgroundColor: BUCKET_COLORS['taxable'].bg,
+      borderColor: BUCKET_COLORS['taxable'].border,
+      borderWidth: 1.5, fill: true, tension: 0.3,
+    },
+  ];
   // Total balance as dashed line on top
   balDatasets.push({
     label: 'Total',
@@ -636,7 +675,7 @@ function renderCharts(result) {
 
   // Build HTML legend for balance chart
   document.getElementById('legend-balance').innerHTML =
-    ['traditional','roth','taxable'].map(b =>
+    ['traditional', 'roth-basis', 'roth', 'taxable'].map(b =>
       `<span><span class="legend-swatch" style="background:${BUCKET_COLORS[b].border}"></span>${BUCKET_LABELS[b]}</span>`
     ).join('') +
     `<span><span class="legend-line"></span>Total</span>`;
