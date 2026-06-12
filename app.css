@@ -151,6 +151,11 @@ button.add-interval.spend-variant:hover { background: #fdf2f8; }
 .badge-acc   { background: #dbeafe; color: #1d4ed8; }
 .badge-spend { background: #fce7f3; color: #9d174d; }
 
+/* ── Age anchor select — custom number input shown below the select when 'Custom' is chosen ── */
+.interval-field select + input[type=number] {
+  font-size: 11px; padding: 4px 7px; font-weight: 500;
+}
+
 /* ── Save/Load ── */
 .saveload-stack { display: flex; flex-direction: column; gap: 8px; }
 .saveload-stack textarea { height: 52px; }

@@ -92,7 +92,8 @@ function validateConfig(cfg) {
 
   // Check contribution interval overlaps per bucket
   for (const bucket of BUCKETS) {
-    const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket);
+    const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket)
+      .map(i => ({ ...i, startAge: resolveAge(i.startAge), endAge: resolveAge(i.endAge) }));
     for (let a = 0; a < intervals.length; a++) {
       for (let b = a + 1; b < intervals.length; b++) {
         const ia = intervals[a], ib = intervals[b];
@@ -104,7 +105,8 @@ function validateConfig(cfg) {
   }
 
   // Check spend interval overlaps
-  const spends = cfg.spendIntervals || [];
+  const spends = (cfg.spendIntervals || [])
+    .map(s => ({ ...s, startAge: resolveAge(s.startAge), endAge: resolveAge(s.endAge) }));
   for (let a = 0; a < spends.length; a++) {
     for (let b = a + 1; b < spends.length; b++) {
       const sa = spends[a], sb = spends[b];
@@ -116,7 +118,8 @@ function validateConfig(cfg) {
 
   // Warn on uncovered accumulation buckets
   for (const bucket of BUCKETS) {
-    const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket);
+    const intervals = (cfg.contributionIntervals || []).filter(i => i.bucket === bucket)
+      .map(i => ({ ...i, startAge: resolveAge(i.startAge), endAge: resolveAge(i.endAge) }));
     if (intervals.length === 0) {
       warnings.push(`No contribution intervals defined for "${bucket}" — it will grow at 0% with no contributions during accumulation.`);
     } else {
@@ -176,16 +179,29 @@ function simulate(cfg) {
 
   const years = [];
 
+  // Resolve symbolic age anchors ('startAge', 'retirementAge', 'endAge') to numbers.
+  // Operates on copies so the config object is not mutated.
+  const resolvedContribIntervals = (cfg.contributionIntervals || []).map(ci => ({
+    ...ci,
+    startAge: resolveAge(ci.startAge),
+    endAge:   resolveAge(ci.endAge),
+  }));
+  const resolvedSpendIntervals = (cfg.spendIntervals || []).map(si => ({
+    ...si,
+    startAge: resolveAge(si.startAge),
+    endAge:   resolveAge(si.endAge),
+  }));
+
   // Helper: find active contribution interval for a bucket at a given age (fractional ok)
   function getContribInterval(bucket, age) {
-    return (cfg.contributionIntervals || []).find(
+    return resolvedContribIntervals.find(
       i => i.bucket === bucket && age >= i.startAge && age < i.endAge
     ) || null;
   }
 
   // Helper: find active spend interval at a given age
   function getSpendInterval(age) {
-    return (cfg.spendIntervals || []).find(
+    return resolvedSpendIntervals.find(
       i => age >= i.startAge && age < i.endAge
     ) || null;
   }
@@ -351,12 +367,12 @@ const DEFAULT_CONFIG = {
     taxable:     { startBalance: 80000, startBasis: 70000 }
   },
   contributionIntervals: [
-    { bucket: 'traditional', startAge: 35, endAge: 65, monthly: 1500, annualRate: 0.07 },
-    { bucket: 'roth',        startAge: 35, endAge: 65, monthly: 500,  annualRate: 0.07 },
-    { bucket: 'taxable',     startAge: 35, endAge: 65, monthly: 1000, annualRate: 0.06 }
+    { bucket: 'traditional', startAge: 'startAge', endAge: 'retirementAge', monthly: 1500, annualRate: 0.07 },
+    { bucket: 'roth',        startAge: 'startAge', endAge: 'retirementAge', monthly: 500,  annualRate: 0.07 },
+    { bucket: 'taxable',     startAge: 'startAge', endAge: 'retirementAge', monthly: 1000, annualRate: 0.06 }
   ],
   spendIntervals: [
-    { startAge: 65, endAge: 95, monthlySpend: 10000,
+    { startAge: 'retirementAge', endAge: 'endAge', monthlySpend: 10000,
       rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } }
   ],
   withdrawalOrder: ['taxable', 'traditional', 'roth-basis', 'roth']
@@ -425,6 +441,41 @@ function loadConfigFromText(text) {
   config = migrateConfig(parsed);
   persistConfig();
   return true;
+}
+
+// === AGE ANCHORS ===
+// Age fields in intervals can be a number OR a symbolic string.
+// Symbolic strings: 'startAge' | 'retirementAge' | 'endAge'
+
+const AGE_ANCHOR_LABELS = {
+  startAge:      'Start Age',
+  retirementAge: 'Retirement Age',
+  endAge:        'End Age',
+};
+
+/** Resolve an age value (number or symbolic string) to a concrete number using the current config. */
+function resolveAge(val) {
+  if (typeof val === 'string' && val in AGE_ANCHOR_LABELS) return config[val];
+  return +val;
+}
+
+/** Render a From/To age field as a select + optional custom number input.
+ *  val: current value (number or symbolic string)
+ *  callbackExpr: inline JS that receives the new value as `__v`
+ *  e.g. "updateCI(0,'startAge',__v)"
+ */
+function ageAnchorSelect(val, callbackExpr) {
+  const isSymbolic = typeof val === 'string' && val in AGE_ANCHOR_LABELS;
+  const isCustom = !isSymbolic;
+  const customVal = isCustom ? val : resolveAge(val);
+  const selectChange = `var __v=this.value==='__custom__'?+this.nextElementSibling.value:this.value;${callbackExpr};this.nextElementSibling.style.display=this.value==='__custom__'?'block':'none'`;
+  const inputChange = `var __v=+this.value;${callbackExpr}`;
+  return `<select oninput="${selectChange}">
+      ${Object.entries(AGE_ANCHOR_LABELS).map(([k, label]) =>
+        `<option value="${k}" ${val === k ? 'selected' : ''}>${label}</option>`
+      ).join('')}
+      <option value="__custom__" ${isCustom ? 'selected' : ''}>Custom</option>
+    </select><input type="number" value="${customVal}" min="0" max="120" style="display:${isCustom ? 'block' : 'none'};margin-top:4px" oninput="${inputChange}">`;
 }
 
 // === RENDER UI ===
@@ -529,8 +580,8 @@ function renderContributions() {
         <button class="danger" onclick="removeCI(${i})">×</button>
       </div>
       <div class="interval-fields cols-4">
-        <div class="interval-field"><label>From Age</label><input type="number" value="${ci.startAge}" min="0" max="120" oninput="updateCI(${i},'startAge',+this.value)"></div>
-        <div class="interval-field"><label>To Age</label><input type="number" value="${ci.endAge}" min="0" max="120" oninput="updateCI(${i},'endAge',+this.value)"></div>
+        <div class="interval-field"><label>From Age</label>${ageAnchorSelect(ci.startAge, `updateCI(${i},'startAge',__v)`)}</div>
+        <div class="interval-field"><label>To Age</label>${ageAnchorSelect(ci.endAge, `updateCI(${i},'endAge',__v)`)}</div>
         <div class="interval-field"><label>$/Month</label><input type="number" value="${ci.monthly}" min="0" oninput="updateCI(${i},'monthly',+this.value)"></div>
         <div class="interval-field"><label>Rate %</label><input type="number" value="${(ci.annualRate*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateCI(${i},'annualRate',+this.value/100)"></div>
       </div>
@@ -548,7 +599,7 @@ function updateCI(i, field, val) {
   runSim();
 }
 function addCI() {
-  config.contributionIntervals.push({ bucket: 'traditional', startAge: config.startAge, endAge: config.retirementAge, monthly: 500, annualRate: 0.07 });
+  config.contributionIntervals.push({ bucket: 'traditional', startAge: 'startAge', endAge: 'retirementAge', monthly: 500, annualRate: 0.07 });
   onConfigChange();
 }
 function removeCI(i) {
@@ -561,12 +612,12 @@ function renderSpend() {
   const rows = config.spendIntervals.map((si, i) => `
     <div class="interval-row">
       <div class="interval-row-header">
-        <span class="interval-title">Ages ${si.startAge}–${si.endAge}</span>
+        <span class="interval-title">Ages ${resolveAge(si.startAge)}–${resolveAge(si.endAge)}</span>
         <button class="danger" onclick="removeSI(${i})">×</button>
       </div>
       <div class="interval-fields cols-6" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr">
-        <div class="interval-field"><label>From Age</label><input type="number" value="${si.startAge}" min="0" max="120" oninput="updateSI(${i},'startAge',+this.value)"></div>
-        <div class="interval-field"><label>To Age</label><input type="number" value="${si.endAge}" min="0" max="120" oninput="updateSI(${i},'endAge',+this.value)"></div>
+        <div class="interval-field"><label>From Age</label>${ageAnchorSelect(si.startAge, `updateSI(${i},'startAge',__v)`)}</div>
+        <div class="interval-field"><label>To Age</label>${ageAnchorSelect(si.endAge, `updateSI(${i},'endAge',__v)`)}</div>
         <div class="interval-field"><label>$/Month</label><input type="number" value="${si.monthlySpend}" min="0" oninput="updateSI(${i},'monthlySpend',+this.value)"></div>
         <div class="interval-field"><label style="color:#6366f1">Trad %</label><input type="number" value="${(si.rates.traditional*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'traditional',+this.value/100)"></div>
         <div class="interval-field"><label style="color:#10b981">Roth %</label><input type="number" value="${(si.rates.roth*100).toFixed(2)}" min="0" max="30" step="0.1" oninput="updateSIRate(${i},'roth',+this.value/100)"></div>
@@ -590,7 +641,7 @@ function updateSIRate(i, bucket, val) {
   runSim();
 }
 function addSI() {
-  config.spendIntervals.push({ startAge: config.retirementAge, endAge: config.endAge, monthlySpend: 8000, rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } });
+  config.spendIntervals.push({ startAge: 'retirementAge', endAge: 'endAge', monthlySpend: 8000, rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } });
   onConfigChange();
 }
 function removeSI(i) {
