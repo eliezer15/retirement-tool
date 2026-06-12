@@ -374,7 +374,7 @@ function loadPersistedConfig() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed.buckets || !parsed.contributionIntervals || !parsed.spendIntervals || !parsed.withdrawalOrder) return null;
-    return parsed;
+    return migrateConfig(parsed);
   } catch { return null; }
 }
 
@@ -392,6 +392,23 @@ function saveConfig() {
   URL.revokeObjectURL(a.href);
 }
 
+function migrateConfig(cfg) {
+  // v1 configs didn't have roth-basis in withdrawalOrder — insert it before 'roth' if missing
+  if (!cfg.withdrawalOrder.includes('roth-basis')) {
+    const rothIdx = cfg.withdrawalOrder.indexOf('roth');
+    if (rothIdx >= 0) {
+      cfg.withdrawalOrder.splice(rothIdx, 0, 'roth-basis');
+    } else {
+      cfg.withdrawalOrder.push('roth-basis');
+    }
+  }
+  // v1 configs may not have roth.startBasis
+  if (cfg.buckets.roth && cfg.buckets.roth.startBasis == null) {
+    cfg.buckets.roth.startBasis = cfg.buckets.roth.startBalance;
+  }
+  return cfg;
+}
+
 function loadConfigFromText(text) {
   let parsed;
   try {
@@ -405,7 +422,7 @@ function loadConfigFromText(text) {
     showBanner('error', 'JSON is missing required fields (buckets, contributionIntervals, spendIntervals, withdrawalOrder).');
     return false;
   }
-  config = parsed;
+  config = migrateConfig(parsed);
   persistConfig();
   return true;
 }
