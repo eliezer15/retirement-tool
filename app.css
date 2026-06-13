@@ -222,5 +222,6 @@ td.cg-val     { color: #f59e0b; }
 td.net-val    { color: #10b981; font-weight: 600; }
 td.penalty-val { color: #f97316; }
 td.rmd-val     { color: #8b5cf6; }
+td.income-val  { color: #0d9488; }
 td.total-val  { color: #0f172a; font-weight: 700; }
 td.dash       { color: #cbd5e1; }

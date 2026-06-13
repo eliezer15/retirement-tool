@@ -814,6 +814,44 @@ function applyPasted() {
   if (loadConfigFromText(text)) onConfigChange();
 }
 
+function renderIncomeStreams() {
+  const el = document.getElementById('ctrl-income');
+  const rows = (config.incomeStreams || []).map((s, i) => `
+    <div class="interval-row">
+      <div class="interval-row-header">
+        <input type="text" value="${s.label}" placeholder="Label (e.g. Social Security)"
+          style="flex:1;min-width:120px;font-weight:600;font-size:12px;background:transparent;border:none;outline:none;color:#0f172a"
+          oninput="updateIS(${i},'label',this.value)"
+          onblur="onConfigChange()">
+        <button class="danger" onclick="removeIS(${i})">×</button>
+      </div>
+      <div class="interval-fields" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="interval-field"><label>From Age</label>${ageAnchorSelect(s.startAge, `updateIS(${i},'startAge',__v)`)}</div>
+        <div class="interval-field"><label>To Age</label>${ageAnchorSelect(s.endAge, `updateIS(${i},'endAge',__v)`)}</div>
+        <div class="interval-field"><label>$/Month</label><input type="number" value="${s.monthly}" min="0" oninput="updateIS(${i},'monthly',+this.value)"></div>
+      </div>
+    </div>`).join('');
+  el.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:14px">
+      <span class="section-label" style="margin-bottom:0">Income Streams</span>
+      <span class="phase-badge" style="background:#ccfbf1;color:#0f766e;margin-left:6px;font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px">Retirement</span>
+    </div>
+    <div id="is-list">${rows}</div>
+    <button class="add-interval" style="color:#0d9488;border-color:#99f6e4" onclick="addIS()">+ Add Income Stream</button>`;
+}
+
+function updateIS(i, field, val) {
+  config.incomeStreams[i][field] = val;
+  runSim();
+}
+function addIS() {
+  config.incomeStreams.push({ label: '', startAge: 'retirementAge', endAge: 'endAge', monthly: 0 });
+  onConfigChange();
+}
+function removeIS(i) {
+  config.incomeStreams.splice(i, 1);
+  onConfigChange();
+}
+
 // === RENDER OUTPUTS ===
 
 let balanceChart = null;
@@ -999,6 +1037,7 @@ function renderTable(result) {
       <td>${fmt(y.balances.roth)}</td>
       <td>${fmt(y.balances.taxable)}</td>
       <td class="total-val">${fmt(y.totalBalance)}</td>
+      <td class="${isSpend(y) && y.extraIncome > 0 ? 'income-val' : 'dash'}">${isSpend(y) && y.extraIncome > 0 ? fmt(y.extraIncome) : '—'}</td>
       <td>${isSpend(y) ? fmt(y.withdrawn) : '<span class="dash">—</span>'}</td>
       <td class="${y.rmdRequired > 0 ? 'rmd-val' : 'dash'}">${y.rmdRequired > 0 ? fmt(y.rmdRequired) : '—'}</td>
       <td class="${y.rmdActual > 0 ? 'rmd-val' : 'dash'}">${y.rmdActual > 0 ? fmt(y.rmdActual) : '—'}</td>
@@ -1011,7 +1050,7 @@ function renderTable(result) {
   document.getElementById('detail-table').innerHTML = `
     <thead><tr>
       <th>Age</th><th>Traditional</th><th>Roth</th><th>Taxable</th><th>Total</th>
-      <th>Withdrawn</th><th>RMD Req.</th><th>RMD Forced</th><th>Ord. Tax</th><th>CG Tax</th><th>Penalty</th><th>Total Tax</th><th>Net Spendable</th>
+      <th>Extra Income</th><th>Withdrawn</th><th>RMD Req.</th><th>RMD Forced</th><th>Ord. Tax</th><th>CG Tax</th><th>Penalty</th><th>Total Tax</th><th>Net Spendable</th>
     </tr></thead>
     <tbody>${rows}</tbody>`;
 }
@@ -1053,6 +1092,7 @@ function onConfigChange() {
   renderOrder();
   renderContributions();
   renderSpend();
+  renderIncomeStreams();
   renderSaveLoad();
   runSim();
 }
