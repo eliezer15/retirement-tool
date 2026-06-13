@@ -361,6 +361,10 @@ const DEFAULT_CONFIG = {
   startAge: 35,
   retirementAge: 65,
   endAge: 95,
+  customAnchors: [
+    { key: 'anchor1', label: '', age: null },
+    { key: 'anchor2', label: '', age: null },
+  ],
   buckets: {
     traditional: { startBalance: 100000 },
     roth:        { startBalance: 50000, startBasis: 50000 },
@@ -422,6 +426,13 @@ function migrateConfig(cfg) {
   if (cfg.buckets.roth && cfg.buckets.roth.startBasis == null) {
     cfg.buckets.roth.startBasis = cfg.buckets.roth.startBalance;
   }
+  // configs before custom anchors feature
+  if (!cfg.customAnchors) {
+    cfg.customAnchors = [
+      { key: 'anchor1', label: '', age: null },
+      { key: 'anchor2', label: '', age: null },
+    ];
+  }
   return cfg;
 }
 
@@ -445,17 +456,31 @@ function loadConfigFromText(text) {
 
 // === AGE ANCHORS ===
 // Age fields in intervals can be a number OR a symbolic string.
-// Symbolic strings: 'startAge' | 'retirementAge' | 'endAge'
+// Built-in symbolic strings: 'startAge' | 'retirementAge' | 'endAge'
+// Custom anchors: 'anchor1' | 'anchor2' (user-defined label + age, only when label is non-empty)
 
-const AGE_ANCHOR_LABELS = {
+const BUILTIN_ANCHOR_LABELS = {
   startAge:      'Start Age',
   retirementAge: 'Retirement Age',
   endAge:        'End Age',
 };
 
+/** Return all currently active anchors (built-ins + custom ones that have a label and age). */
+function allAnchorLabels() {
+  const result = { ...BUILTIN_ANCHOR_LABELS };
+  for (const a of (config.customAnchors || [])) {
+    if (a.label && a.age != null) result[a.key] = a.label;
+  }
+  return result;
+}
+
 /** Resolve an age value (number or symbolic string) to a concrete number using the current config. */
 function resolveAge(val) {
-  if (typeof val === 'string' && val in AGE_ANCHOR_LABELS) return config[val];
+  if (typeof val === 'string') {
+    if (val in BUILTIN_ANCHOR_LABELS) return config[val];
+    const custom = (config.customAnchors || []).find(a => a.key === val);
+    if (custom && custom.age != null) return custom.age;
+  }
   return +val;
 }
 
@@ -465,13 +490,14 @@ function resolveAge(val) {
  *  e.g. "updateCI(0,'startAge',__v)"
  */
 function ageAnchorSelect(val, callbackExpr) {
-  const isSymbolic = typeof val === 'string' && val in AGE_ANCHOR_LABELS;
+  const anchors = allAnchorLabels();
+  const isSymbolic = typeof val === 'string' && val in anchors;
   const isCustom = !isSymbolic;
   const customVal = isCustom ? val : resolveAge(val);
   const selectChange = `var __v=this.value==='__custom__'?+this.nextElementSibling.value:this.value;${callbackExpr};this.nextElementSibling.style.display=this.value==='__custom__'?'block':'none'`;
   const inputChange = `var __v=+this.value;${callbackExpr}`;
   return `<select oninput="${selectChange}">
-      ${Object.entries(AGE_ANCHOR_LABELS).map(([k, label]) =>
+      ${Object.entries(anchors).map(([k, label]) =>
         `<option value="${k}" ${val === k ? 'selected' : ''}>${label}</option>`
       ).join('')}
       <option value="__custom__" ${isCustom ? 'selected' : ''}>Custom</option>
@@ -494,6 +520,14 @@ function fmt(n) { return n == null ? '—' : '$' + Math.round(n).toLocaleString(
 function fmtPct(n) { return (n * 100).toFixed(2) + '%'; }
 
 function renderGlobal() {
+  const anchors = config.customAnchors || [];
+  const anchorRows = anchors.map((a, i) => `
+    <div class="custom-anchor-row">
+      <input type="text" id="anchor-label-${i}" value="${a.label}" placeholder="Label (e.g. New Job)" style="flex:1;min-width:100px">
+      <input type="number" id="anchor-age-${i}" value="${a.age ?? ''}" placeholder="Age" min="0" max="120"
+        style="width:70px" ${!a.label ? 'disabled' : ''}>
+    </div>`).join('');
+
   document.getElementById('ctrl-global').innerHTML = `
     <div class="section-label">Global Settings</div>
     <div class="row">
@@ -503,10 +537,29 @@ function renderGlobal() {
         <input type="number" id="g-retire" value="${config.retirementAge}" min="18" max="100"></div>
       <div class="field"><label>End Age</label>
         <input type="number" id="g-end" value="${config.endAge}" min="20" max="120"></div>
-    </div>`;
+    </div>
+    ${anchorRows.length ? `<div style="margin-top:10px">
+      <div style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Custom Age Markers</div>
+      ${anchorRows}
+    </div>` : ''}`;
+
   document.getElementById('g-start').addEventListener('input', e => { config.startAge = +e.target.value; runSim(); });
   document.getElementById('g-retire').addEventListener('input', e => { config.retirementAge = +e.target.value; runSim(); });
   document.getElementById('g-end').addEventListener('input', e => { config.endAge = +e.target.value; runSim(); });
+
+  anchors.forEach((a, i) => {
+    const labelEl = document.getElementById(`anchor-label-${i}`);
+    const ageEl   = document.getElementById(`anchor-age-${i}`);
+    labelEl.addEventListener('input', e => {
+      config.customAnchors[i].label = e.target.value.trim();
+      ageEl.disabled = !config.customAnchors[i].label;
+      onConfigChange(); // rebuild dropdowns so new anchor appears/disappears
+    });
+    ageEl.addEventListener('input', e => {
+      config.customAnchors[i].age = e.target.value === '' ? null : +e.target.value;
+      onConfigChange(); // rebuild dropdowns so anchor age change is reflected everywhere
+    });
+  });
 }
 
 function renderBuckets() {
