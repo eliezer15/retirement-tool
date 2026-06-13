@@ -421,9 +421,17 @@ function simulate(cfg) {
   }
   const endingBalance = years.length > 0 ? years[years.length - 1].totalBalance : 0;
 
+  // Net worth at retirement = balance at the start of the retirement year
+  // Withdrawal rate = gross withdrawals in the first retirement year / that balance
+  const retirementYear = years.find(y => y.age === cfg.retirementAge);
+  const netWorthAtRetirement = retirementYear ? retirementYear.totalBalance : null;
+  const withdrawalRate = (retirementYear && retirementYear.totalBalance > 0)
+    ? retirementYear.withdrawn / retirementYear.totalBalance
+    : null;
+
   return {
     years,
-    summary: { peakNetWorth, peakNetWorthAge, totalLifetimeTax, ageMoneyRunsOut, endingBalance }
+    summary: { peakNetWorth, peakNetWorthAge, totalLifetimeTax, ageMoneyRunsOut, endingBalance, netWorthAtRetirement, withdrawalRate }
   };
 }
 
@@ -1003,7 +1011,20 @@ function renderCharts(result) {
 
 function renderSummary(result) {
   const s = result.summary;
+  const withdrawalRateStr = s.withdrawalRate != null
+    ? (s.withdrawalRate * 100).toFixed(1) + '%'
+    : '—';
   document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card">
+      <div class="s-label">Net Worth at Retirement</div>
+      <div class="s-val indigo">${s.netWorthAtRetirement != null ? fmt(s.netWorthAtRetirement) : '—'}</div>
+      <div class="s-sub">at age ${config.retirementAge}</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-label">Withdrawal Rate</div>
+      <div class="s-val ${s.withdrawalRate != null && s.withdrawalRate > 0.05 ? 'red' : 'green'}">${withdrawalRateStr}</div>
+      <div class="s-sub">year 1 of retirement</div>
+    </div>
     <div class="summary-card">
       <div class="s-label">Peak Net Worth</div>
       <div class="s-val indigo">${fmt(s.peakNetWorth)}</div>
