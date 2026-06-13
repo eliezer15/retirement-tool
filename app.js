@@ -23,6 +23,34 @@ const LTCG_BRACKETS_MFJ = [
   [Infinity, 0.20],
 ];
 
+// IRS Uniform Lifetime Table for RMDs.
+// Key: age. Value: distribution period (divisor).
+// Source: IRS Publication 590-B, Table III (Uniform Lifetime).
+// Ages below 73 are not subject to RMDs. Ages above 120 use the last known factor.
+const RMD_UNIFORM_TABLE = {
+   73: 26.5,  74: 25.5,  75: 24.6,  76: 23.7,  77: 22.9,
+   78: 22.0,  79: 21.1,  80: 20.2,  81: 19.4,  82: 18.5,
+   83: 17.7,  84: 16.8,  85: 16.0,  86: 15.2,  87: 14.4,
+   88: 13.7,  89: 12.9,  90: 12.2,  91: 11.5,  92: 10.8,
+   93: 10.1,  94: 9.5,   95: 9.6,   96: 9.1,   97: 8.6,
+   98: 8.1,   99: 7.6,  100: 7.1,  101: 6.7,  102: 6.3,
+  103: 5.9,  104: 5.5,  105: 5.2,  106: 4.9,  107: 4.5,
+  108: 4.2,  109: 3.9,  110: 3.7,  111: 3.4,  112: 3.1,
+  113: 2.9,  114: 2.6,  115: 2.4,  116: 2.1,  117: 1.9,
+  118: 1.7,  119: 1.5,  120: 1.4,
+};
+
+/** Return the RMD distribution period for a given age.
+ * Returns null for ages below 73 (no RMD required).
+ * Uses last known factor for ages above the table max. */
+function getRmdFactor(age) {
+  if (age < 73) return null;
+  const factor = RMD_UNIFORM_TABLE[age];
+  if (factor !== undefined) return factor;
+  // Age beyond table — use the last entry
+  return RMD_UNIFORM_TABLE[120];
+}
+
 // === ENGINE ===
 // All pure functions. No DOM access.
 //
