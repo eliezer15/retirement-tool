@@ -219,6 +219,11 @@ function simulate(cfg) {
     startAge: resolveAge(si.startAge),
     endAge:   resolveAge(si.endAge),
   }));
+  const resolvedIncomeStreams = (cfg.incomeStreams || []).map(s => ({
+    ...s,
+    startAge: resolveAge(s.startAge),
+    endAge:   resolveAge(s.endAge),
+  }));
 
   // Helper: find active contribution interval for a bucket at a given age (fractional ok)
   function getContribInterval(bucket, age) {
@@ -234,6 +239,13 @@ function simulate(cfg) {
     ) || null;
   }
 
+  // Helper: sum monthly income from all active income streams at a given age
+  function getActiveIncome(age) {
+    return resolvedIncomeStreams
+      .filter(s => age >= s.startAge && age < s.endAge)
+      .reduce((sum, s) => sum + s.monthly, 0);
+  }
+
   // Run month by month
   const totalMonths = (cfg.endAge - cfg.startAge) * 12;
   let yearOrdinaryIncome = 0;
@@ -241,6 +253,7 @@ function simulate(cfg) {
   let yearWithdrawn = 0;
   let yearPenaltyBase = 0;    // sum of penalized withdrawal amounts for the year
   let yearTradWithdrawn = 0;  // Traditional withdrawals this year (for RMD shortfall check)
+  let yearExtraIncome = 0;    // income stream cash received this year (offsets withdrawals)
   let currentYear = 0;        // years elapsed since startAge
 
   // RMD: track Traditional balance at start of each year (IRS uses prior Dec 31 balance).
@@ -264,8 +277,12 @@ function simulate(cfg) {
       }
 
       // Growth applied before withdrawal; balanceBefore in basis calc includes this month's growth.
+      // Income streams offset spend — pull less from buckets this month.
+      const monthlyIncome = getActiveIncome(ageFloat);
+      yearOrdinaryIncome += monthlyIncome; // 100% taxable as ordinary income
+      yearExtraIncome    += monthlyIncome;
       // Pull withdrawals in order
-      let remaining = monthlySpend;
+      let remaining = Math.max(0, monthlySpend - monthlyIncome);
       for (const b of cfg.withdrawalOrder) {
         if (remaining <= 0) break;
 
@@ -372,14 +389,16 @@ function simulate(cfg) {
         penaltyTax,
         rmdRequired,  // IRS-mandated minimum (0 if age < 73)
         rmdActual,    // extra forced withdrawal on top of planned withdrawals
+        extraIncome: yearExtraIncome,
         totalTax: ordinaryTax + capGainsTax + penaltyTax,
-        netSpendable: yearWithdrawn - (ordinaryTax + capGainsTax + penaltyTax),
+        netSpendable: yearWithdrawn + yearExtraIncome - (ordinaryTax + capGainsTax + penaltyTax),
       });
       yearOrdinaryIncome = 0;
       yearCapGainsRealized = 0;
       yearWithdrawn = 0;
       yearPenaltyBase = 0;
       yearTradWithdrawn = 0;
+      yearExtraIncome = 0;
       // Update tradBalStartOfYear AFTER the top-up so next year uses the correct Dec 31 balance
       tradBalStartOfYear = bal.traditional;
       currentYear = newYear;
