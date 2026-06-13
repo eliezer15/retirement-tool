@@ -550,10 +550,17 @@ function renderGlobal() {
   anchors.forEach((a, i) => {
     const labelEl = document.getElementById(`anchor-label-${i}`);
     const ageEl   = document.getElementById(`anchor-age-${i}`);
+    // input: update value live and toggle age field — no DOM rebuild so focus is preserved
     labelEl.addEventListener('input', e => {
+      config.customAnchors[i].label = e.target.value;
+      ageEl.disabled = !e.target.value.trim();
+      persistConfig();
+    });
+    // blur: trim, then rebuild dropdowns so the new label appears in all interval selects
+    labelEl.addEventListener('blur', e => {
       config.customAnchors[i].label = e.target.value.trim();
-      ageEl.disabled = !config.customAnchors[i].label;
-      onConfigChange(); // rebuild dropdowns so new anchor appears/disappears
+      e.target.value = config.customAnchors[i].label; // reflect trim in field
+      onConfigChange();
     });
     ageEl.addEventListener('input', e => {
       config.customAnchors[i].age = e.target.value === '' ? null : +e.target.value;
