@@ -1022,7 +1022,7 @@ function renderSummary(result) {
     </div>
     <div class="summary-card">
       <div class="s-label">Withdrawal Rate</div>
-      <div class="s-val ${s.withdrawalRate != null && s.withdrawalRate > 0.05 ? 'red' : 'green'}">${withdrawalRateStr}</div>
+      <div class="s-val slate">${withdrawalRateStr}</div>
       <div class="s-sub">year 1 of retirement</div>
     </div>
     <div class="summary-card">
