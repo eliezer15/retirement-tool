@@ -239,8 +239,13 @@ function simulate(cfg) {
   let yearOrdinaryIncome = 0;
   let yearCapGainsRealized = 0;
   let yearWithdrawn = 0;
-  let yearPenaltyBase = 0; // sum of penalized withdrawal amounts for the year
-  let currentYear = 0; // years elapsed since startAge
+  let yearPenaltyBase = 0;    // sum of penalized withdrawal amounts for the year
+  let yearTradWithdrawn = 0;  // Traditional withdrawals this year (for RMD shortfall check)
+  let currentYear = 0;        // years elapsed since startAge
+
+  // RMD: track Traditional balance at start of each year (IRS uses prior Dec 31 balance).
+  // Initialized to starting balance; updated at each year boundary after the top-up.
+  let tradBalStartOfYear = cfg.buckets.traditional.startBalance;
 
   for (let m = 0; m < totalMonths; m++) {
     const ageFloat = cfg.startAge + m / 12;
@@ -288,6 +293,7 @@ function simulate(cfg) {
 
           if (b === 'traditional') {
             yearOrdinaryIncome += withdrawal;
+            yearTradWithdrawn  += withdrawal;
             // All traditional withdrawals are penalized pre-59.5 (all pre-tax, no basis)
             if (isPenalty) yearPenaltyBase += withdrawal;
           } else if (b === 'taxable') {
@@ -335,6 +341,20 @@ function simulate(cfg) {
       // age = age at START of this year (the age you are during these 12 months).
       // Months m=(newYear-1)*12 .. newYear*12-1 cover ageFloat from startAge+(newYear-1) to startAge+newYear.
       const age = cfg.startAge + newYear - 1;
+
+      // --- RMD top-up (Option A: lump year-end forced withdrawal) ---
+      // Apply BEFORE computing taxes so the extra ordinary income is taxed correctly.
+      const rmdFactor = getRmdFactor(age);
+      const rmdRequired = rmdFactor != null ? tradBalStartOfYear / rmdFactor : 0;
+      const rmdShortfall = Math.max(0, rmdRequired - yearTradWithdrawn);
+      const rmdActual = Math.min(rmdShortfall, bal.traditional); // capped at available balance
+      if (rmdActual > 0) {
+        bal.traditional    -= rmdActual;
+        yearOrdinaryIncome += rmdActual; // RMD is fully ordinary income
+        yearWithdrawn      += rmdActual; // adds to spendable cash
+        // RMD top-ups are post-59.5 by definition (RMD starts at 73) — no penalty
+      }
+
       const { ordinaryTax, capGainsTax } = computeAnnualTax(yearOrdinaryIncome, yearCapGainsRealized);
       const penaltyTax = yearPenaltyBase * 0.10;
       const totalBalance = bal.traditional + bal.roth + bal.taxable;
@@ -350,6 +370,8 @@ function simulate(cfg) {
         capGainsTax,
         penaltyBase: yearPenaltyBase,
         penaltyTax,
+        rmdRequired,  // IRS-mandated minimum (0 if age < 73)
+        rmdActual,    // extra forced withdrawal on top of planned withdrawals
         totalTax: ordinaryTax + capGainsTax + penaltyTax,
         netSpendable: yearWithdrawn - (ordinaryTax + capGainsTax + penaltyTax),
       });
@@ -357,6 +379,9 @@ function simulate(cfg) {
       yearCapGainsRealized = 0;
       yearWithdrawn = 0;
       yearPenaltyBase = 0;
+      yearTradWithdrawn = 0;
+      // Update tradBalStartOfYear AFTER the top-up so next year uses the correct Dec 31 balance
+      tradBalStartOfYear = bal.traditional;
       currentYear = newYear;
     }
   }
