@@ -104,7 +104,7 @@ button.add-interval.spend-variant:hover { background: #fdf2f8; }
 }
 .dot-traditional { background: #6366f1; }
 .dot-roth        { background: #10b981; }
-.dot-roth-basis  { background: #34d399; }
+.dot-roth-basis  { background: #0891b2; }
 .dot-taxable     { background: #f59e0b; }
 
 /* ── Bucket balance rows ── */

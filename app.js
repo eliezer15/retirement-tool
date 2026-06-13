@@ -860,7 +860,7 @@ let taxChart = null;
 const BUCKET_COLORS = {
   traditional:  { bg: 'rgba(99,102,241,0.5)',   border: '#6366f1' },
   roth:         { bg: 'rgba(16,185,129,0.5)',    border: '#10b981' },
-  'roth-basis': { bg: 'rgba(52,211,153,0.35)',   border: '#34d399' }, // lighter emerald — Roth basis sits inside Roth
+  'roth-basis': { bg: 'rgba(8,145,178,0.45)',    border: '#0891b2' }, // teal/cyan — distinct from Roth emerald
   taxable:      { bg: 'rgba(245,158,11,0.5)',    border: '#f59e0b' },
 };
 
