@@ -976,6 +976,8 @@ function renderTable(result) {
       <td>${fmt(y.balances.taxable)}</td>
       <td class="total-val">${fmt(y.totalBalance)}</td>
       <td>${isSpend(y) ? fmt(y.withdrawn) : '<span class="dash">—</span>'}</td>
+      <td class="${y.rmdRequired > 0 ? 'rmd-val' : 'dash'}">${y.rmdRequired > 0 ? fmt(y.rmdRequired) : '—'}</td>
+      <td class="${y.rmdActual > 0 ? 'rmd-val' : 'dash'}">${y.rmdActual > 0 ? fmt(y.rmdActual) : '—'}</td>
       <td class="${isSpend(y) && y.ordinaryTax > 0 ? 'tax-val' : 'dash'}">${isSpend(y) ? fmt(y.ordinaryTax) : '—'}</td>
       <td class="${isSpend(y) && y.capGainsTax > 0 ? 'cg-val' : 'dash'}">${isSpend(y) ? fmt(y.capGainsTax) : '—'}</td>
       <td class="${isSpend(y) && y.penaltyTax > 0 ? 'penalty-val' : 'dash'}">${isSpend(y) ? fmt(y.penaltyTax) : '—'}</td>
@@ -985,7 +987,7 @@ function renderTable(result) {
   document.getElementById('detail-table').innerHTML = `
     <thead><tr>
       <th>Age</th><th>Traditional</th><th>Roth</th><th>Taxable</th><th>Total</th>
-      <th>Withdrawn</th><th>Ord. Tax</th><th>CG Tax</th><th>Penalty</th><th>Total Tax</th><th>Net Spendable</th>
+      <th>Withdrawn</th><th>RMD Req.</th><th>RMD Forced</th><th>Ord. Tax</th><th>CG Tax</th><th>Penalty</th><th>Total Tax</th><th>Net Spendable</th>
     </tr></thead>
     <tbody>${rows}</tbody>`;
 }
