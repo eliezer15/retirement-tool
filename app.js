@@ -304,8 +304,9 @@ function simulate(cfg) {
     // At each year boundary, record annual results
     const newYear = Math.floor((m + 1) / 12);
     if (newYear > currentYear) {
-      // age = age at END of this year (after 12 months complete). Year 1 data = age startAge+1.
-      const age = cfg.startAge + newYear;
+      // age = age at START of this year (the age you are during these 12 months).
+      // Months m=(newYear-1)*12 .. newYear*12-1 cover ageFloat from startAge+(newYear-1) to startAge+newYear.
+      const age = cfg.startAge + newYear - 1;
       const { ordinaryTax, capGainsTax } = computeAnnualTax(yearOrdinaryIncome, yearCapGainsRealized);
       const penaltyTax = yearPenaltyBase * 0.10;
       const totalBalance = bal.traditional + bal.roth + bal.taxable;
@@ -850,7 +851,7 @@ function renderCharts(result) {
 
   // --- Tax chart (stacked bar, retirement years only) ---
   const taxCtx = document.getElementById('chart-tax').getContext('2d');
-  const retYears = years.filter(y => y.age > config.retirementAge);
+  const retYears = years.filter(y => y.age >= config.retirementAge);
 
   document.getElementById('legend-tax').innerHTML =
     `<span><span class="legend-swatch" style="background:#f43f5e"></span>Ordinary Income Tax</span>` +
@@ -912,8 +913,8 @@ function renderSummary(result) {
 }
 
 function renderTable(result) {
-  const isRetireYear = y => y.age === config.retirementAge + 1;
-  const isSpend = y => y.age > config.retirementAge;
+  const isRetireYear = y => y.age === config.retirementAge;
+  const isSpend = y => y.age >= config.retirementAge;
   const rows = result.years.map(y => `
     <tr>
       <td class="${isRetireYear(y) ? 'retire-age' : ''}">${y.age}${isRetireYear(y) ? ' ★' : ''}</td>
