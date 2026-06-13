@@ -433,7 +433,8 @@ const DEFAULT_CONFIG = {
     { startAge: 'retirementAge', endAge: 'endAge', monthlySpend: 10000,
       rates: { traditional: 0.04, roth: 0.05, taxable: 0.03 } }
   ],
-  withdrawalOrder: ['taxable', 'traditional', 'roth-basis', 'roth']
+  withdrawalOrder: ['taxable', 'traditional', 'roth-basis', 'roth'],
+  incomeStreams: []
 };
 
 const STORAGE_KEY = 'retirement-visualizer-config';
@@ -486,6 +487,10 @@ function migrateConfig(cfg) {
       { key: 'anchor1', label: '', age: null },
       { key: 'anchor2', label: '', age: null },
     ];
+  }
+  // configs before income streams feature
+  if (!cfg.incomeStreams) {
+    cfg.incomeStreams = [];
   }
   return cfg;
 }
